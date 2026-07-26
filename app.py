@@ -25,6 +25,8 @@ def get_secret(name, default=""):
         return default
 
 
+API_KEY = get_secret("DELTA_API_KEY")
+API_SECRET = get_secret("DELTA_API_SECRET")
 
 
 def generate_signature(secret: str, message: str) -> str:
@@ -144,7 +146,7 @@ def get_btc_expiries(products):
 
 
 
-def normalize_option_chain(rows, btcusdt_spot=None):
+def normalize_option_chain(rows):
     if not rows:
         return pd.DataFrame()
     df = pd.DataFrame(rows).copy()
@@ -161,9 +163,6 @@ def normalize_option_chain(rows, btcusdt_spot=None):
     df["gamma"] = pd.to_numeric(df["greeks"].apply(lambda x: (x or {}).get("gamma")), errors="coerce")
     df["theta"] = pd.to_numeric(df["greeks"].apply(lambda x: (x or {}).get("theta")), errors="coerce")
     df["vega"] = pd.to_numeric(df["greeks"].apply(lambda x: (x or {}).get("vega")), errors="coerce")
-
-    if btcusdt_spot is not None:
-        df["spot_price"] = btcusdt_spot
 
     df["option_side"] = df["contract_type"].map(
         {"call_options": "CALL", "put_options": "PUT"}
@@ -339,21 +338,18 @@ try:
 
     selected_expiry = st.selectbox("Select BTC option expiry", expiries, index=0)
     option_rows = fetch_option_chain(selected_expiry)
+    option_df = normalize_option_chain(option_rows)
+    chain_table = build_option_chain_table(option_df)
 
     spot_price = pd.to_numeric(pd.Series([ticker.get("spot_price")]), errors="coerce").iloc[0]
     mark_price = pd.to_numeric(pd.Series([ticker.get("mark_price")]), errors="coerce").iloc[0]
     volume = pd.to_numeric(pd.Series([ticker.get("volume")]), errors="coerce").iloc[0]
-
-    option_df = normalize_option_chain(option_rows, btcusdt_spot=spot_price)
-    chain_table = build_option_chain_table(option_df)
 
     a, b, c, d = st.columns(4)
     a.metric("BTCUSDT Spot", f"{spot_price:,.2f}" if pd.notna(spot_price) else "NA")
     b.metric("BTCUSDT Mark", f"{mark_price:,.2f}" if pd.notna(mark_price) else "NA")
     c.metric("BTCUSDT Volume", f"{volume:,.2f}" if pd.notna(volume) else "NA")
     d.metric("Option Rows", f"{len(option_df):,}")
-
-    st.caption("Option table spot reference is forced to BTCUSDT perpetual ticker spot_price.")
 
     st.subheader("BTCUSDT Ticker")
     ticker_df = pd.DataFrame([ticker])
