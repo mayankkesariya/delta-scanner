@@ -1,3 +1,49 @@
+
+import requests
+import os
+
+# Securely load your API key
+# Create a file named 'config.json' with {"API_KEY": "your_key_here"}
+# or use environment variables
+API_KEY = os.getenv("uaynKULA6BeG3gorWNtI5XRlQBFqlH") 
+
+def get_market_data(symbol):
+    """
+    Fetches market data from Delta Exchange with error handling.
+    """
+    url = f"https://api.delta.exchange/v2/products/{symbol}/ticker"
+    headers = {"api-key": API_KEY}
+    
+    try:
+        response = requests.get(url, headers=headers)
+        
+        # Check if the request was successful
+        if response.status_code == 200:
+            data = response.json()
+            # Validate the presence of the result key
+            if 'result' in data:
+                return data['result']
+            else:
+                print("Error: 'result' key missing from response.")
+        else:
+            print(f"API Error: Received status code {response.status_code}")
+            return None
+            
+    except Exception as e:
+        print(f"Connection error: {e}")
+        return None
+
+# Usage
+symbol = "BTC"  # Example symbol
+price_data = get_market_data(symbol)
+
+if price_data:
+    print(f"Current Price for {symbol}: {price_data.get('mark_price')}")
+else:
+    print("Failed to retrieve data. Check your API key and network connection.")
+
+
+
 import requests
 import time
 
