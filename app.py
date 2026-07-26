@@ -142,7 +142,14 @@ def find_ratio_spreads(df, option_type, qty_long, qty_short, min_credit, min_oi,
                 continue
             long_k = long_row["strike_price"]
             short_k = short_row["strike_price"]
-            width = short_k - long_k if option_type == "call_options" else long_k - short_k
+            if option_type == "call_options":
+                if pd.notna(spot_value) and not (long_k > spot_value and short_k > spot_value):
+                    continue
+                width = short_k - long_k
+            else:
+                if pd.notna(spot_value) and not (long_k < spot_value and short_k < spot_value):
+                    continue
+                width = long_k - short_k
             if pd.isna(long_k) or pd.isna(short_k) or width < width_min or width > width_max:
                 continue
             buy_price = premium_buy(long_row, price_mode)
