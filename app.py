@@ -11,9 +11,9 @@ HEADERS = {
 
 DELTA_API_KEY = "mWnEeEk2Yt8VeNKbilC1774vOXQ2CU"
 
-DELTA_API_SECRET = "QZlh3EZ7SxqPzInv3EcTHAiH42
-Oz1c1kS9bh3iH1fcHSxcGUEwS
-6TylNh6OX"
+DELTA_API_SECRET = "QZlh3EZ7SxqPzInv3EcTHAiH42Oz1c1kS9bh3iH1fcHSxcGUEwS6TylNh6OX"
+
+
 
 st.set_page_config(page_title="Delta BTC Ratio Spread Scanner", layout="wide")
 st.title("Delta Exchange BTC Ratio Spread Opportunity Scanner")
