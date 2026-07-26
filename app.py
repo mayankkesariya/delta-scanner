@@ -155,7 +155,7 @@ def find_ratio_spreads(df, option_type, qty_long, qty_short, min_credit, min_oi,
             max_profit = net_credit + width * qty_long
             breakeven = short_k + max_profit / max(qty_short - qty_long, 1) if option_type == "call_options" else short_k - max_profit / max(qty_short - qty_long, 1)
             rows.append({
-                "strategy": f"{qty_long}x{int(long_k)}{'C' if option_type == 'call_options' else 'P'} / -{qty_short}x{int(short_k)}{'C' if option_type == 'call_options' else 'P'}",
+                "strategy": f"{qty_long}:{qty_short} | {qty_long}x{int(long_k)}{'C' if option_type == 'call_options' else 'P'} / -{qty_short}x{int(short_k)}{'C' if option_type == 'call_options' else 'P'}",
                 "type": "Call Ratio Spread" if option_type == "call_options" else "Put Ratio Spread",
                 "spot_price": spot_value,
                 "long_symbol": long_row.get("symbol"),
@@ -191,8 +191,8 @@ def format_numeric_columns(df):
 with st.sidebar:
     refresh_seconds = st.slider("Auto refresh seconds", 10, 300, 30, 5)
     strategy_side = st.selectbox("Scan side", ["Call Ratio Spread", "Put Ratio Spread"])
-    qty_long = st.number_input("Long quantity", min_value=1, max_value=10, value=1, step=1)
-    qty_short = st.number_input("Short quantity", min_value=1, max_value=10, value=2, step=1)
+    ratio_start = st.number_input("Short ratio start", min_value=2, max_value=20, value=5, step=1)
+    ratio_end = st.number_input("Short ratio end", min_value=2, max_value=20, value=10, step=1)
     price_mode = st.selectbox("Premium mode", ["natural", "mid"], index=0)
     min_credit = st.number_input("Minimum net credit", min_value=0.0, value=0.0, step=1.0)
     min_oi = st.number_input("Minimum OI per leg", min_value=0, value=0, step=1)
@@ -226,9 +226,20 @@ try:
     c3.metric("Selected Expiry", selected_expiry)
 
     option_type = "call_options" if strategy_side == "Call Ratio Spread" else "put_options"
-    opps = find_ratio_spreads(option_df, option_type, qty_long, qty_short, min_credit, min_oi, min_volume, width_min, width_max, price_mode)
+    start_ratio = min(ratio_start, ratio_end)
+    end_ratio = max(ratio_start, ratio_end)
+    frames = []
+    for short_ratio in range(start_ratio, end_ratio + 1):
+        frame = find_ratio_spreads(option_df, option_type, 1, short_ratio, min_credit, min_oi, min_volume, width_min, width_max, price_mode)
+        if not frame.empty:
+            frame["ratio"] = f"1:{short_ratio}"
+            frames.append(frame)
+    opps = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    if not opps.empty:
+        opps = opps.sort_values(["net_credit", "width"], ascending=[False, False]).reset_index(drop=True)
 
     st.subheader("Opportunity Scanner")
+    st.caption(f"Scanning ratios from 1:{start_ratio} to 1:{end_ratio}")
     if opps.empty:
         st.warning("No opportunities found for the current filters.")
     else:
