@@ -84,8 +84,16 @@ if st.button("🚀 Scan Market Now"):
                 if not strikes: continue
                 
                 atm_strike = min(strikes, key=lambda x: abs(x - btc_price))
-                long_strike = atm_strike + OFFSET_OTM_LONG
-                short_strike = atm_strike + OFFSET_OTM_SHORT
+atm_index = strikes.index(atm_strike)
+
+# Ensure there are enough strikes above the ATM price to scan
+if atm_index + 3 >= len(strikes):
+    continue
+
+# Dynamically pick the 1st and 3rd strikes Out-Of-The-Money
+long_strike = strikes[atm_index + 1] 
+short_strike = strikes[atm_index + 3] 
+
                 
                 atm_sym = next((p['symbol'] for p in parsed_opts if p['strike'] == atm_strike), None)
                 long_sym = next((p['symbol'] for p in parsed_opts if p['strike'] == long_strike), None)
