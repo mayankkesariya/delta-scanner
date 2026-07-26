@@ -176,7 +176,6 @@ show_df.columns = [
     "Net Credit",
 ]
 
-st.dataframe(show_df, use_container_width=True, height=420)",
             })
     res = pd.DataFrame(rows)
     if not res.empty:
