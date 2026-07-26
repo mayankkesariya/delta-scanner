@@ -251,6 +251,24 @@ try:
         st.warning("No opportunities found for the current filters.")
     else:
         show_df = format_numeric_columns(opps.head(max_rows))
+        show_df = show_df[[
+            "ratio",
+            "long_strike",
+            "short_strike",
+            "width",
+            "buy_price",
+            "sell_price",
+            "net_credit",
+        ]]
+        show_df.columns = [
+            "Ratio",
+            "Long Strike",
+            "Short Strike",
+            "Width",
+            "Buy Price",
+            "Sell Price",
+            "Net Credit",
+        ]
         st.dataframe(show_df, use_container_width=True, height=420)
         st.download_button("Download opportunities CSV", opps.to_csv(index=False).encode("utf-8"), f"delta_ratio_spreads_{selected_expiry}.csv", "text/csv")
 
