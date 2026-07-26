@@ -25,8 +25,6 @@ def get_secret(name, default=""):
         return default
 
 
-API_KEY = get_secret("lHzi4h8CH4kEt5J3TQ0V752Wl34KvW")
-API_SECRET = get_secret("g5ibKtcTEMelWS4UScjyoCW1RVDj9Z5bXEzvTZseT6l1eIlEUZKaLsyXoFJ4")
 
 
 def generate_signature(secret: str, message: str) -> str:
