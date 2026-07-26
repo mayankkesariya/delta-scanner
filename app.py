@@ -1,125 +1,207 @@
-
 import requests
-import os
+import pandas as pd
+import streamlit as st
 
-# Securely load your API key
-# Create a file named 'config.json' with {"API_KEY": "your_key_here"}
-# or use environment variables
-API_KEY = os.getenv("uaynKULA6BeG3gorWNtI5XRlQBFqlH") 
+BASE_URL = "https://api.india.delta.exchange/v2"
+HEADERS = {
+    "Accept": "application/json",
+    "User-Agent": "streamlit-option-chain-app"
+}
 
-def get_market_data(symbol):
-    """
-    Fetches market data from Delta Exchange with error handling.
-    """
-    url = f"https://api.delta.exchange/v2/products/{symbol}/ticker"
-    headers = {"api-key": API_KEY}
-    
-    try:
-        response = requests.get(url, headers=headers)
-        
-        # Check if the request was successful
-        if response.status_code == 200:
-            data = response.json()
-            # Validate the presence of the result key
-            if 'result' in data:
-                return data['result']
-            else:
-                print("Error: 'result' key missing from response.")
-        else:
-            print(f"API Error: Received status code {response.status_code}")
-            return None
-            
-    except Exception as e:
-        print(f"Connection error: {e}")
-        return None
+st.set_page_config(page_title="Delta BTC Option Chain", layout="wide")
+st.title("Delta Exchange BTC Option Chain")
 
-# Usage
-symbol = "BTC"  # Example symbol
-price_data = get_market_data(symbol)
+@st.cache_data(ttl=30)
+def fetch_all_products():
+    all_rows = []
+    after = None
 
-if price_data:
-    print(f"Current Price for {symbol}: {price_data.get('mark_price')}")
-else:
-    print("Failed to retrieve data. Check your API key and network connection.")
+    while True:
+        params = {
+            "contract_types": "call_options,put_options",
+            "states": "live",
+            "page_size": 100
+        }
+        if after:
+            params["after"] = after
 
+        r = requests.get(
+            f"{BASE_URL}/products",
+            params=params,
+            headers=HEADERS,
+            timeout=20
+        )
+        r.raise_for_status()
+        data = r.json()
 
+        rows = data.get("result", [])
+        all_rows.extend(rows)
 
-import requests
-import time
+        meta = data.get("meta", {}) or {}
+        after = meta.get("after")
 
-# --- Configuration ---
-# Update your API key here if needed
-API_KEY = "YOUR_API_KEY_HERE" 
-BASE_URL = "https://api.delta.exchange"
+        if not after or not rows:
+            break
 
-# --- Robust API Handling ---
-def get_market_data(symbol):
-    """
-    Fetches market data with error handling to prevent 
-    'NoneType' crashes during maintenance or connection issues.
-    """
-    try:
-        url = f"{BASE_URL}/v2/products?symbol={symbol}"
-        response = requests.get(url, timeout=10)
-        
-        # 1. Status Code Check
-        if response.status_code != 200:
-            print(f"API Error: Received status code {response.status_code}")
-            return None
-        
-        data = response.json()
-        
-        # 2. Key Validation
-        if 'result' not in data:
-            print("API Error: 'result' key missing in response.")
-            return None
-            
-        return data['result']
-        
-    except Exception as e:
-        print(f"Connection Error: {e}")
-        return None
+    return all_rows
 
-# --- Main Logic ---
-def analyze_parity(ratio):
-    """
-    Analyzes specific market spread based on the provided ratio.
-    """
-    # Placeholder: Replace this with your specific Delta Exchange symbol/logic
-    # For demonstration, we check a mock calculation
-    ticker_data = get_market_data("BTC")
-    
-    if ticker_data is None:
-        print(f"Skipping ratio {ratio} due to failed data fetch.")
-        return
+@st.cache_data(ttl=15)
+def fetch_option_chain(underlying="BTC", expiry_date=None):
+    params = {
+        "contract_types": "call_options,put_options",
+        "underlying_asset_symbols": underlying
+    }
+    if expiry_date:
+        params["expiry_date"] = expiry_date
 
-    # --- Your Strategy Logic Here ---
-    # Example logic placeholders:
-    atm_net = -10 # Example calculation
-    otm_credit = 5 # Example calculation
-    
-    # Check conditions:
-    # ATM spread target: -20 to 0
-    # OTM credit target: > 0
-    if -20 <= atm_net <= 0 and otm_credit > 0:
-        print(f"MATCH FOUND for Ratio 1:{ratio}")
-        print(f"ATM Net: {atm_net}, OTM Credit: {otm_credit}")
-    else:
-        # Diagnostic print for debugging - remove if you want less noise
-        # print(f"Checked 1:{ratio} -> No match (ATM: {atm_net}, OTM: {otm_credit})")
-        pass
+    r = requests.get(
+        f"{BASE_URL}/tickers",
+        params=params,
+        headers=HEADERS,
+        timeout=20
+    )
+    r.raise_for_status()
+    data = r.json()
+    return data.get("result", [])
 
-# --- Execution ---
-def main():
-    print("Starting Scanner...")
-    # Loop ratios from 1:2 to 1:10
-    for ratio in range(2, 11):
-        try:
-            analyze_parity(ratio)
-        except Exception as e:
-            print(f"Error scanning ratio 1:{ratio} -> {e}")
-            
-    print("Scan complete.")
+def get_btc_expiries(products):
+    expiries = set()
 
-if __name__ == "__main__":
-    main()
+    for p in products:
+        if p.get("contract_type") not in ["call_options", "put_options"]:
+            continue
+
+        symbol = p.get("symbol", "")
+        if "-BTC-" not in symbol:
+            continue
+
+        settlement_time = p.get("settlement_time")
+        if settlement_time:
+            try:
+                dt = pd.to_datetime(settlement_time, utc=True)
+                expiries.add(dt.strftime("%d-%m-%Y"))
+            except Exception:
+                pass
+
+    return sorted(expiries, key=lambda x: pd.to_datetime(x, format="%d-%m-%Y"))
+
+def build_chain_table(option_rows):
+    if not option_rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(option_rows)
+
+    df["strike_price"] = pd.to_numeric(df.get("strike_price"), errors="coerce")
+    df["mark_price"] = pd.to_numeric(df.get("mark_price"), errors="coerce")
+    df["spot_price"] = pd.to_numeric(df.get("spot_price"), errors="coerce")
+    df["oi"] = pd.to_numeric(df.get("oi"), errors="coerce")
+    df["volume"] = pd.to_numeric(df.get("volume"), errors="coerce")
+
+    df["best_bid"] = pd.to_numeric(df["quotes"].apply(lambda x: (x or {}).get("best_bid")), errors="coerce")
+    df["best_ask"] = pd.to_numeric(df["quotes"].apply(lambda x: (x or {}).get("best_ask")), errors="coerce")
+    df["bid_iv"] = pd.to_numeric(df["quotes"].apply(lambda x: (x or {}).get("bid_iv")), errors="coerce")
+    df["ask_iv"] = pd.to_numeric(df["quotes"].apply(lambda x: (x or {}).get("ask_iv")), errors="coerce")
+
+    df["delta"] = pd.to_numeric(df["greeks"].apply(lambda x: (x or {}).get("delta")), errors="coerce")
+    df["gamma"] = pd.to_numeric(df["greeks"].apply(lambda x: (x or {}).get("gamma")), errors="coerce")
+    df["theta"] = pd.to_numeric(df["greeks"].apply(lambda x: (x or {}).get("theta")), errors="coerce")
+    df["vega"] = pd.to_numeric(df["greeks"].apply(lambda x: (x or {}).get("vega")), errors="coerce")
+
+    calls = df[df["contract_type"] == "call_options"].copy()
+    puts = df[df["contract_type"] == "put_options"].copy()
+
+    calls = calls.rename(columns={
+        "symbol": "call_symbol",
+        "best_bid": "call_bid",
+        "best_ask": "call_ask",
+        "mark_price": "call_mark",
+        "oi": "call_oi",
+        "volume": "call_volume",
+        "delta": "call_delta",
+        "gamma": "call_gamma",
+        "theta": "call_theta",
+        "vega": "call_vega",
+        "bid_iv": "call_bid_iv",
+        "ask_iv": "call_ask_iv"
+    })
+
+    puts = puts.rename(columns={
+        "symbol": "put_symbol",
+        "best_bid": "put_bid",
+        "best_ask": "put_ask",
+        "mark_price": "put_mark",
+        "oi": "put_oi",
+        "volume": "put_volume",
+        "delta": "put_delta",
+        "gamma": "put_gamma",
+        "theta": "put_theta",
+        "vega": "put_vega",
+        "bid_iv": "put_bid_iv",
+        "ask_iv": "put_ask_iv"
+    })
+
+    merged = pd.merge(
+        calls[[
+            "strike_price", "spot_price", "call_symbol", "call_bid", "call_ask",
+            "call_mark", "call_oi", "call_volume", "call_delta", "call_gamma",
+            "call_theta", "call_vega", "call_bid_iv", "call_ask_iv"
+        ]],
+        puts[[
+            "strike_price", "put_symbol", "put_bid", "put_ask", "put_mark",
+            "put_oi", "put_volume", "put_delta", "put_gamma", "put_theta",
+            "put_vega", "put_bid_iv", "put_ask_iv"
+        ]],
+        on="strike_price",
+        how="outer"
+    ).sort_values("strike_price")
+
+    col_order = [
+        "call_symbol", "call_bid", "call_ask", "call_mark", "call_oi", "call_volume",
+        "call_delta", "call_gamma", "call_theta", "call_vega", "call_bid_iv", "call_ask_iv",
+        "strike_price",
+        "put_bid", "put_ask", "put_mark", "put_oi", "put_volume",
+        "put_delta", "put_gamma", "put_theta", "put_vega", "put_bid_iv", "put_ask_iv", "put_symbol"
+    ]
+
+    existing_cols = [c for c in col_order if c in merged.columns]
+    merged = merged[existing_cols]
+
+    return merged
+
+try:
+    products = fetch_all_products()
+    expiries = get_btc_expiries(products)
+
+    if not expiries:
+        st.error("No BTC option expiries found.")
+        st.stop()
+
+    selected_expiry = st.selectbox("Select expiry", expiries, index=0)
+    option_rows = fetch_option_chain("BTC", selected_expiry)
+    chain = build_chain_table(option_rows)
+
+    st.caption(f"Rows fetched: {len(option_rows)}")
+
+    if option_rows:
+        spot_candidates = pd.to_numeric(
+            pd.DataFrame(option_rows).get("spot_price"),
+            errors="coerce"
+        ).dropna()
+
+        if not spot_candidates.empty:
+            st.metric("Spot Price", f"{spot_candidates.iloc[0]:,.2f}")
+
+    st.dataframe(chain, use_container_width=True, height=700)
+
+    csv = chain.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "Download option chain CSV",
+        data=csv,
+        file_name=f"delta_btc_option_chain_{selected_expiry}.csv",
+        mime="text/csv"
+    )
+
+except requests.HTTPError as e:
+    st.error(f"HTTP error: {e}")
+except Exception as e:
+    st.error(f"Error: {e}")
