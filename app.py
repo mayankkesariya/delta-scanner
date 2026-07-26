@@ -162,26 +162,21 @@ def find_ratio_spreads(df, option_type, qty_long, qty_short, min_credit, min_oi,
             max_profit = net_credit + width * qty_long
             breakeven = short_k + max_profit / max(qty_short - qty_long, 1) if option_type == "call_options" else short_k - max_profit / max(qty_short - qty_long, 1)
             rows.append({
-                "strategy": f"{qty_long}:{qty_short} | {qty_long}x{int(long_k)}{'C' if option_type == 'call_options' else 'P'} / -{qty_short}x{int(short_k)}{'C' if option_type == 'call_options' else 'P'}",
-                "type": "Call Ratio Spread" if option_type == "call_options" else "Put Ratio Spread",
-                "spot_price": spot_value,
-                "long_symbol": long_row.get("symbol"),
-                "short_symbol": short_row.get("symbol"),
-                "long_strike": long_k,
-                "short_strike": short_k,
-                "width": width,
-                "buy_price": buy_price,
-                "sell_price": sell_price,
-                "net_credit": net_credit,
-                "max_profit_at_short_strike": max_profit,
-                "breakeven": breakeven,
-                "long_oi": long_row.get("oi"),
-                "short_oi": short_row.get("oi"),
-                "long_volume": long_row.get("volume"),
-                "short_volume": short_row.get("volume"),
-                "long_delta": long_row.get("delta"),
-                "short_delta": short_row.get("delta"),
-                "risk_note": "Unlimited tail risk" if qty_short > qty_long else "Bounded",
+                show_df = format_numeric_columns(opps.head(max_rows))
+
+# Display only the required columns
+
+show_df.columns = [
+    "Ratio",
+    "Long Strike",
+    "Short Strike",
+    "Width",
+    "Buy Price",
+    "Sell Price",
+    "Net Credit",
+]
+
+st.dataframe(show_df, use_container_width=True, height=420)",
             })
     res = pd.DataFrame(rows)
     if not res.empty:
