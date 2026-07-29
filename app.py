@@ -6,7 +6,7 @@ import streamlit as st
 BASE_URL = "https://api.india.delta.exchange/v2"
 HEADERS = {
     "Accept": "application/json",
-    "User-Agent": "streamlit-option-chain-app"
+    "User-Agent": "streamlit-option-chain-app",
 }
 
 st.set_page_config(page_title="Delta BTC Ratio Spread Scanner", layout="wide")
@@ -123,6 +123,45 @@ def premium_sell(row, mode):
         return (row.get("best_bid") + row.get("best_ask")) / 2
     return row.get("best_bid") if pd.notna(row.get("best_bid")) else row.get("mark_price")
 
+def get_atm_strike(sub, spot_value):
+    if pd.isna(spot_value) or sub.empty:
+        return math.nan
+    tmp = sub[["strike_price"]].dropna().copy()
+    if tmp.empty:
+        return math.nan
+    tmp["dist"] = (tmp["strike_price"] - spot_value).abs()
+    return float(tmp.sort_values(["dist", "strike_price"]).iloc[0]["strike_price"])
+
+def get_row_by_strike(sub, strike):
+    matches = sub[sub["strike_price"] == strike]
+    if matches.empty:
+        return None
+    return matches.iloc[0]
+
+def get_same_width_atm_reference_credit(sub, option_type, qty_long, qty_short, width, spot_value, price_mode):
+    atm = get_atm_strike(sub, spot_value)
+    if pd.isna(atm) or width <= 0:
+        return math.nan
+    if option_type == "call_options":
+        long_k = atm
+        short_k = atm + width
+        if not (long_k > spot_value and short_k > spot_value):
+            return math.nan
+    else:
+        long_k = atm
+        short_k = atm - width
+        if not (long_k < spot_value and short_k < spot_value):
+            return math.nan
+    long_row = get_row_by_strike(sub, long_k)
+    short_row = get_row_by_strike(sub, short_k)
+    if long_row is None or short_row is None:
+        return math.nan
+    buy_price = premium_buy(long_row, price_mode)
+    sell_price = premium_sell(short_row, price_mode)
+    if pd.isna(buy_price) or pd.isna(sell_price):
+        return math.nan
+    return qty_short * sell_price - qty_long * buy_price
+
 def find_ratio_spreads(df, option_type, qty_long, qty_short, min_credit, min_oi, min_volume, width_min, width_max, price_mode):
     sub = df[df["contract_type"] == option_type].copy()
     ascending = True if option_type == "call_options" else False
@@ -159,6 +198,17 @@ def find_ratio_spreads(df, option_type, qty_long, qty_short, min_credit, min_oi,
             net_credit = qty_short * sell_price - qty_long * buy_price
             if net_credit < min_credit:
                 continue
+            atm_same_width_credit = get_same_width_atm_reference_credit(
+                sub=sub,
+                option_type=option_type,
+                qty_long=qty_long,
+                qty_short=qty_short,
+                width=width,
+                spot_value=spot_value,
+                price_mode=price_mode,
+            )
+            if pd.isna(atm_same_width_credit) or atm_same_width_credit > 0:
+                continue
             max_profit = net_credit + width * qty_long
             breakeven = short_k + max_profit / max(qty_short - qty_long, 1) if option_type == "call_options" else short_k - max_profit / max(qty_short - qty_long, 1)
             rows.append({
@@ -173,6 +223,7 @@ def find_ratio_spreads(df, option_type, qty_long, qty_short, min_credit, min_oi,
                 "buy_price": buy_price,
                 "sell_price": sell_price,
                 "net_credit": net_credit,
+                "atm_same_width_credit": atm_same_width_credit,
                 "max_profit_at_short_strike": max_profit,
                 "breakeven": breakeven,
                 "long_oi": long_row.get("oi"),
@@ -246,29 +297,11 @@ try:
         opps = opps.sort_values(["net_credit", "width"], ascending=[False, False]).reset_index(drop=True)
 
     st.subheader("Opportunity Scanner")
-    st.caption(f"Scanning ratios from 1:{start_ratio} to 1:{end_ratio}")
+    st.caption(f"Scanning ratios from 1:{start_ratio} to 1:{end_ratio}. Results appear only when the same-width ATM ratio is zero or debit.")
     if opps.empty:
-        st.warning("No opportunities found for the current filters.")
+        st.warning("No opportunities found for the current filters and ATM same-width zero/debit rule.")
     else:
         show_df = format_numeric_columns(opps.head(max_rows))
-        show_df = show_df[[
-            "ratio",
-            "long_strike",
-            "short_strike",
-            "width",
-            "buy_price",
-            "sell_price",
-            "net_credit",
-        ]]
-        show_df.columns = [
-            "Ratio",
-            "Long Strike",
-            "Short Strike",
-            "Width",
-            "Buy Price",
-            "Sell Price",
-            "Net Credit",
-        ]
         st.dataframe(show_df, use_container_width=True, height=420)
         st.download_button("Download opportunities CSV", opps.to_csv(index=False).encode("utf-8"), f"delta_ratio_spreads_{selected_expiry}.csv", "text/csv")
 
