@@ -181,6 +181,9 @@ def find_ratio_spreads(df, option_type, qty_long, qty_short, min_credit, min_oi,
                 "short_volume": short_row.get("volume"),
                 "long_delta": long_row.get("delta"),
                 "short_delta": short_row.get("delta"),
+                "long_strike_iv": long_row.get("ask_iv") if pd.notna(long_row.get("ask_iv")) else long_row.get("bid_iv"),
+                "short_strike_iv": short_row.get("bid_iv") if pd.notna(short_row.get("bid_iv")) else short_row.get("ask_iv"),
+                "iv_difference": ((long_row.get("ask_iv") if pd.notna(long_row.get("ask_iv")) else long_row.get("bid_iv")) - (short_row.get("bid_iv") if pd.notna(short_row.get("bid_iv")) else short_row.get("ask_iv"))),
                 "risk_note": "Unlimited tail risk" if qty_short > qty_long else "Bounded",
             })
     res = pd.DataFrame(rows)
@@ -252,10 +255,10 @@ try:
     else:
         show_df = format_numeric_columns(opps.head(max_rows))
         show_df = show_df[[
-            "ratio","long_strike","short_strike","width","buy_price","sell_price","net_credit"
+            "ratio","long_strike","short_strike","long_strike_iv","short_strike_iv","iv_difference","width","buy_price","sell_price","net_credit"
         ]]
         show_df.columns = [
-            "Ratio","Long Strike","Short Strike","Farak","Buy Price","Sell Price","Net Credit"
+            "Ratio","Long Strike","Short Strike","Long Strike IV","Short Strike IV","IV Difference","Farak","Buy Price","Sell Price","Net Credit"
         ]
         st.dataframe(show_df, use_container_width=True, height=420)
         st.download_button("Download opportunities CSV", opps.to_csv(index=False).encode("utf-8"), f"delta_ratio_spreads_{selected_expiry}.csv", "text/csv")
