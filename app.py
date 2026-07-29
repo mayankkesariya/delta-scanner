@@ -185,7 +185,7 @@ def find_ratio_spreads(df, option_type, qty_long, qty_short, min_credit, min_oi,
                 "short_strike_iv": ((short_row.get("bid_iv") if pd.notna(short_row.get("bid_iv")) else short_row.get("ask_iv")) * 100),
                 "iv_difference": ((((long_row.get("ask_iv") if pd.notna(long_row.get("ask_iv")) else long_row.get("bid_iv")) - (short_row.get("bid_iv") if pd.notna(short_row.get("bid_iv")) else short_row.get("ask_iv"))) * 100),
                 "risk_note": "Unlimited tail risk" if qty_short > qty_long else "Bounded",
-            )})
+            })
     res = pd.DataFrame(rows)
     if not res.empty:
         res = res.sort_values(["net_credit", "width"], ascending=[False, False]).reset_index(drop=True)
