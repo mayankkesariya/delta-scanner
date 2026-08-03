@@ -191,6 +191,97 @@ def find_ratio_spreads(df, option_type, qty_long, qty_short, min_credit, min_oi,
         res = res.sort_values(["net_credit", "width"], ascending=[False, False]).reset_index(drop=True)
     return res
 
+def mid_iv_pct(row):
+    if row is None:
+        return math.nan
+    bid = row.get("bid_iv")
+    ask = row.get("ask_iv")
+    if pd.notna(bid) and pd.notna(ask):
+        return (bid + ask) / 2 * 100
+    if pd.notna(ask):
+        return ask * 100
+    if pd.notna(bid):
+        return bid * 100
+    return math.nan
+
+def get_leg(option_df, strike, contract_type):
+    if strike is None:
+        return None
+    rows = option_df[(option_df["strike_price"] == strike) & (option_df["contract_type"] == contract_type)]
+    return rows.iloc[0] if not rows.empty else None
+
+def build_skew_curve(option_df, spot_value, max_steps=10):
+    """
+    Builds a single-expiry IV skew curve from ATM out to a 1:10 strike-step ladder.
+    Walks 'max_steps' strikes above spot (calls) and below spot (puts) from the ATM strike,
+    using the same option_df/expiry already loaded for the scanner above (no other expiries involved).
+    """
+    if option_df is None or option_df.empty or spot_value is None or pd.isna(spot_value):
+        return pd.DataFrame()
+    strikes = sorted(pd.to_numeric(option_df["strike_price"], errors="coerce").dropna().unique().tolist())
+    if not strikes:
+        return pd.DataFrame()
+    atm_strike = min(strikes, key=lambda k: abs(k - spot_value))
+    atm_index = strikes.index(atm_strike)
+
+    atm_call = get_leg(option_df, atm_strike, "call_options")
+    atm_put = get_leg(option_df, atm_strike, "put_options")
+    atm_call_iv = mid_iv_pct(atm_call)
+    atm_put_iv = mid_iv_pct(atm_put)
+    atm_iv_values = [v for v in [atm_call_iv, atm_put_iv] if pd.notna(v)]
+    atm_iv = sum(atm_iv_values) / len(atm_iv_values) if atm_iv_values else math.nan
+
+    rows_out = [{
+        "step": "ATM",
+        "call_strike": atm_strike,
+        "call_moneyness_pct": (atm_strike / spot_value - 1) * 100,
+        "call_iv": atm_call_iv,
+        "call_delta": atm_call.get("delta") if atm_call is not None else math.nan,
+        "call_oi": atm_call.get("oi") if atm_call is not None else math.nan,
+        "call_volume": atm_call.get("volume") if atm_call is not None else math.nan,
+        "put_strike": atm_strike,
+        "put_moneyness_pct": (atm_strike / spot_value - 1) * 100,
+        "put_iv": atm_put_iv,
+        "put_delta": atm_put.get("delta") if atm_put is not None else math.nan,
+        "put_oi": atm_put.get("oi") if atm_put is not None else math.nan,
+        "put_volume": atm_put.get("volume") if atm_put is not None else math.nan,
+        "call_iv_minus_atm": 0.0 if pd.notna(atm_call_iv) else math.nan,
+        "put_iv_minus_atm": 0.0 if pd.notna(atm_put_iv) else math.nan,
+        "risk_reversal_call_minus_put": (atm_call_iv - atm_put_iv) if pd.notna(atm_call_iv) and pd.notna(atm_put_iv) else math.nan,
+    }]
+
+    for step in range(1, max_steps + 1):
+        up_idx = atm_index + step
+        down_idx = atm_index - step
+        up_strike = strikes[up_idx] if up_idx < len(strikes) else None
+        down_strike = strikes[down_idx] if down_idx >= 0 else None
+
+        call_row = get_leg(option_df, up_strike, "call_options")
+        put_row = get_leg(option_df, down_strike, "put_options")
+        call_iv = mid_iv_pct(call_row)
+        put_iv = mid_iv_pct(put_row)
+
+        rows_out.append({
+            "step": f"1:{step}",
+            "call_strike": up_strike,
+            "call_moneyness_pct": ((up_strike / spot_value - 1) * 100) if up_strike is not None else math.nan,
+            "call_iv": call_iv,
+            "call_delta": call_row.get("delta") if call_row is not None else math.nan,
+            "call_oi": call_row.get("oi") if call_row is not None else math.nan,
+            "call_volume": call_row.get("volume") if call_row is not None else math.nan,
+            "put_strike": down_strike,
+            "put_moneyness_pct": ((down_strike / spot_value - 1) * 100) if down_strike is not None else math.nan,
+            "put_iv": put_iv,
+            "put_delta": put_row.get("delta") if put_row is not None else math.nan,
+            "put_oi": put_row.get("oi") if put_row is not None else math.nan,
+            "put_volume": put_row.get("volume") if put_row is not None else math.nan,
+            "call_iv_minus_atm": (call_iv - atm_iv) if pd.notna(call_iv) and pd.notna(atm_iv) else math.nan,
+            "put_iv_minus_atm": (put_iv - atm_iv) if pd.notna(put_iv) and pd.notna(atm_iv) else math.nan,
+            "risk_reversal_call_minus_put": (call_iv - put_iv) if pd.notna(call_iv) and pd.notna(put_iv) else math.nan,
+        })
+
+    return pd.DataFrame(rows_out)
+
 def format_numeric_columns(df):
     out = df.copy()
     for col in out.columns:
@@ -261,7 +352,27 @@ try:
         st.dataframe(show_df, use_container_width=True, height=420)
         st.download_button("Download opportunities CSV", opps.to_csv(index=False).encode("utf-8"), f"delta_ratio_spreads_{selected_expiry}.csv", "text/csv")
 
+    st.subheader("Skew Curve (ATM to 1:10, Single Expiry)")
+    st.caption(f"IV skew for {selected_expiry} only — walks 10 strikes above spot (calls) and 10 strikes below spot (puts) from the ATM strike.")
+    skew_df = build_skew_curve(option_df, spot_value, max_steps=10)
+    if skew_df.empty:
+        st.warning("Not enough strike data to build the skew curve for this expiry.")
+    else:
+        skew_show = format_numeric_columns(skew_df)
+        skew_show = skew_show[[
+            "step", "call_strike", "call_moneyness_pct", "call_iv", "call_delta", "call_oi", "call_volume",
+            "put_strike", "put_moneyness_pct", "put_iv", "put_delta", "put_oi", "put_volume",
+            "call_iv_minus_atm", "put_iv_minus_atm", "risk_reversal_call_minus_put"
+        ]]
+        skew_show.columns = [
+            "Step", "Call Strike", "Call Moneyness %", "Call IV", "Call Delta", "Call OI", "Call Volume",
+            "Put Strike", "Put Moneyness %", "Put IV", "Put Delta", "Put OI", "Put Volume",
+            "Call IV - ATM IV", "Put IV - ATM IV", "Risk Reversal (Call IV - Put IV)"
+        ]
+        st.dataframe(skew_show, use_container_width=True, height=420)
+        st.download_button("Download skew curve CSV", skew_df.to_csv(index=False).encode("utf-8"), f"btc_skew_curve_{selected_expiry}.csv", "text/csv")
+
 except requests.HTTPError as e:
     st.error(f"HTTP error: {e}")
 except Exception as e:
-    st.error(f"Error: {e}")
+    st.error(
