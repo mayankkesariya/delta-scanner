@@ -375,4 +375,4 @@ try:
 except requests.HTTPError as e:
     st.error(f"HTTP error: {e}")
 except Exception as e:
-    st.error(
+    st.error)
