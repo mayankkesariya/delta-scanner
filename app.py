@@ -199,14 +199,12 @@ def format_numeric_columns(df):
     return out
 
 with st.sidebar:
-    refresh_seconds = st.slider("Auto refresh seconds", 10, 300, 30, 5)
+    refresh_seconds = st.slider("Auto refresh seconds", 5, 10, 5, 1)
     strategy_side = st.selectbox("Scan side", ["Call Ratio Spread", "Put Ratio Spread"])
     ratio_start = st.number_input("Short ratio start", min_value=2, max_value=20, value=5, step=1)
     ratio_end = st.number_input("Short ratio end", min_value=2, max_value=20, value=10, step=1)
     price_mode = st.selectbox("Premium mode", ["natural", "mid"], index=0)
     min_credit = st.number_input("Minimum net credit", min_value=0.0, value=0.0, step=1.0)
-    min_oi = st.number_input("Minimum OI per leg", min_value=0, value=0, step=1)
-    min_volume = st.number_input("Minimum volume per leg", min_value=0, value=0, step=1)
     width_min = st.number_input("Minimum strike width", min_value=0, value=1000, step=500)
     width_max = st.number_input("Maximum strike width", min_value=0, value=20000, step=500)
     max_rows = st.slider("Top opportunities", 5, 200, 30, 5)
@@ -240,7 +238,7 @@ try:
     end_ratio = max(ratio_start, ratio_end)
     frames = []
     for short_ratio in range(start_ratio, end_ratio + 1):
-        frame = find_ratio_spreads(option_df, option_type, 1, short_ratio, min_credit, min_oi, min_volume, width_min, width_max, price_mode)
+        frame = find_ratio_spreads(option_df, option_type, 1, short_ratio, min_credit, 0, 0, width_min, width_max, price_mode)
         if not frame.empty:
             frame["ratio"] = f"1:{short_ratio}"
             frames.append(frame)
@@ -263,12 +261,8 @@ try:
         st.dataframe(show_df, use_container_width=True, height=420)
         st.download_button("Download opportunities CSV", opps.to_csv(index=False).encode("utf-8"), f"delta_ratio_spreads_{selected_expiry}.csv", "text/csv")
 
-    st.subheader("Complete Option Chain")
-    st.caption(f"Rows fetched: {len(option_rows)}")
-    st.dataframe(chain, use_container_width=True, height=700)
-    st.download_button("Download option chain CSV", chain.to_csv(index=False).encode("utf-8"), f"delta_btc_option_chain_{selected_expiry}.csv", "text/csv")
-
 except requests.HTTPError as e:
     st.error(f"HTTP error: {e}")
 except Exception as e:
     st.error(f"Error: {e}")
+
