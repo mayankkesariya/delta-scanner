@@ -334,10 +334,10 @@ try:
         atm_strike = float(call_sub.loc[(call_sub["strike_price"] - spot_value).abs().idxmin(), "strike_price"])
 
         wc1, wc2, wc3, wc4 = st.columns([1, 1, 1, 1])
-        atm_long_qty = wc1.number_input("Long qty (ATM)", min_value=1, value=1, step=1, key="atm_long_qty")
-        atm_short_qty = wc2.number_input("Short qty per leg", min_value=1, value=10, step=1, key="atm_short_qty")
-        start_diff = wc3.number_input("Start difference", min_value=0, value=600, step=100, key="atm_start_diff")
-        end_diff = wc4.number_input("End difference", min_value=0, value=1400, step=100, key="atm_end_diff")
+        atm_long_qty = wc1.number_input("Long Qty (ATM)", min_value=1, value=1, step=1, key="atm_long_qty")
+        atm_short_qty = wc2.number_input("Short Qty per Leg", min_value=1, value=10, step=1, key="atm_short_qty")
+        start_diff = wc3.number_input("Minimum Farak", min_value=0, value=600, step=100, key="atm_start_diff")
+        end_diff = wc4.number_input("Maximum Farak", min_value=0, value=1400, step=100, key="atm_end_diff")
 
         lo_diff, hi_diff = (start_diff, end_diff) if start_diff <= end_diff else (end_diff, start_diff)
         strikes_in_band = call_sub.loc[
@@ -385,10 +385,10 @@ try:
         atm_strike_put = float(put_sub.loc[(put_sub["strike_price"] - spot_value).abs().idxmin(), "strike_price"])
 
         wp1, wp2, wp3, wp4 = st.columns([1, 1, 1, 1])
-        atm_long_qty_put = wp1.number_input("Long qty (ATM)", min_value=1, value=1, step=1, key="atm_long_qty_put")
-        atm_short_qty_put = wp2.number_input("Short qty per leg", min_value=1, value=10, step=1, key="atm_short_qty_put")
-        start_diff_put = wp3.number_input("Start difference", min_value=0, value=600, step=100, key="atm_start_diff_put")
-        end_diff_put = wp4.number_input("End difference", min_value=0, value=1400, step=100, key="atm_end_diff_put")
+        atm_long_qty_put = wp1.number_input("Long Qty (ATM)", min_value=1, value=1, step=1, key="atm_long_qty_put")
+        atm_short_qty_put = wp2.number_input("Short Qty per Leg", min_value=1, value=10, step=1, key="atm_short_qty_put")
+        start_diff_put = wp3.number_input("Minimum Farak", min_value=0, value=600, step=100, key="atm_start_diff_put")
+        end_diff_put = wp4.number_input("Maximum Farak", min_value=0, value=1400, step=100, key="atm_end_diff_put")
 
         lo_diff_put, hi_diff_put = (start_diff_put, end_diff_put) if start_diff_put <= end_diff_put else (end_diff_put, start_diff_put)
         strikes_in_band_put = put_sub.loc[
