@@ -301,7 +301,7 @@ try:
     if not opps.empty:
         opps = opps.sort_values(["net_credit", "width"], ascending=[False, False]).reset_index(drop=True)
 
-    st.subheader("Opportunity Scanner")
+    st.subheader("Live Opportunities Available")
     st.caption(f"Scanning ratios from 1:{start_ratio} to 1:{end_ratio}")
     if opps.empty:
         st.warning("No opportunities found for the current filters.")
@@ -322,7 +322,7 @@ try:
     # (default 1:10) across as many widths/differences from ATM as you enter.
     # ==========================================================================
     st.markdown("---")
-    st.subheader("ATM 1:10 Call Ratio — Multi-Width Table")
+    st.subheader("ATM Curve Finder")
 
     call_sub = option_df[option_df["contract_type"] == "call_options"].copy()
     call_sub["strike_price"] = pd.to_numeric(call_sub["strike_price"], errors="coerce")
