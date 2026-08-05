@@ -261,7 +261,130 @@ try:
         st.dataframe(show_df, use_container_width=True, height=420)
         st.download_button("Download opportunities CSV", opps.to_csv(index=False).encode("utf-8"), f"delta_ratio_spreads_{selected_expiry}.csv", "text/csv")
 
+    # ==========================================================================
+    # NEW SECTION (added below scanner, does not modify anything above)
+    # BTC Option Chain — Put | Strike | Call layout, mirroring the NIFTY/SENSEX
+    # Put-Strike-Call sheet style: strikes down the middle, Puts on the left,
+    # Calls on the right, ATM row highlighted.
+    # ==========================================================================
+    st.markdown("---")
+    st.subheader("BTC Option Chain — Put | Strike | Call Layout")
+
+    if chain.empty:
+        st.warning("No option chain data available to build the layout.")
+    else:
+        layout_df = chain.copy()
+        layout_df["call_iv"] = layout_df["call_ask_iv"].where(layout_df["call_ask_iv"].notna(), layout_df["call_bid_iv"]) * 100
+        layout_df["put_iv"] = layout_df["put_bid_iv"].where(layout_df["put_bid_iv"].notna(), layout_df["put_ask_iv"]) * 100
+
+        layout_cols = [
+            "put_oi", "put_volume", "put_delta", "put_iv", "put_bid", "put_ask", "put_mark",
+            "strike_price",
+            "call_mark", "call_bid", "call_ask", "call_iv", "call_delta", "call_volume", "call_oi",
+        ]
+        layout_names = [
+            "Put OI", "Put Vol", "Put Delta", "Put IV%", "Put Bid", "Put Ask", "Put Mark",
+            "STRIKE",
+            "Call Mark", "Call Bid", "Call Ask", "Call IV%", "Call Delta", "Call Vol", "Call OI",
+        ]
+        present = [c for c in layout_cols if c in layout_df.columns]
+        layout_df = layout_df[present].reset_index(drop=True)
+        layout_df.columns = [n for c, n in zip(layout_cols, layout_names) if c in present]
+
+        atm_idx = None
+        if spot_value is not None and layout_df["STRIKE"].notna().any():
+            atm_idx = (layout_df["STRIKE"] - spot_value).abs().idxmin()
+
+        def highlight_layout(row):
+            if atm_idx is not None and row.name == atm_idx:
+                return ["background-color: #ffe680; font-weight: bold;"] * len(row)
+            styles = [""] * len(row)
+            strike = row["STRIKE"]
+            if spot_value is not None and pd.notna(strike):
+                shade_prefix = "Call" if strike < spot_value else "Put"
+                for i, col in enumerate(row.index):
+                    if col.startswith(shade_prefix):
+                        styles[i] = "background-color: #eef1f5;"
+            return styles
+
+        styled_layout = layout_df.style.apply(highlight_layout, axis=1).format(precision=2)
+        st.dataframe(styled_layout, use_container_width=True, height=520)
+        st.caption(
+            "Yellow row = strike nearest current spot (ATM). Shaded cells mark the ITM side. "
+            "Columns mirror your Put | Strike | Call sheet; Delta Exchange doesn't expose the extra "
+            "distance/Greek grid columns from your Excel file, so tell me the formula behind those if you want them added."
+        )
+
+    # ==========================================================================
+    # NEW SECTION (added below scanner, does not modify anything above)
+    # BTC IV Skew Curve: Call IV vs Put IV vs Strike, plus the Put/Call IV
+    # skew ratio curve, with the scanner's current ratio-spread legs marked.
+    # ==========================================================================
+    st.markdown("---")
+    st.subheader("BTC IV Skew Curve")
+
+    if chain.empty:
+        st.warning("No IV data available to build the skew curve.")
+    else:
+        skew_df = chain[["strike_price", "call_bid_iv", "call_ask_iv", "put_bid_iv", "put_ask_iv"]].copy()
+        skew_df["Call IV"] = skew_df["call_ask_iv"].where(skew_df["call_ask_iv"].notna(), skew_df["call_bid_iv"]) * 100
+        skew_df["Put IV"] = skew_df["put_bid_iv"].where(skew_df["put_bid_iv"].notna(), skew_df["put_ask_iv"]) * 100
+        skew_df = skew_df.dropna(subset=["strike_price"]).sort_values("strike_price").reset_index(drop=True)
+        skew_df["Put/Call IV Ratio"] = skew_df["Put IV"] / skew_df["Call IV"]
+
+        if skew_df.empty:
+            st.warning("No strikes with usable IV quotes for this expiry.")
+        else:
+            try:
+                import matplotlib.pyplot as plt
+
+                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 7), sharex=True, gridspec_kw={"height_ratios": [2, 1]})
+
+                ax1.plot(skew_df["strike_price"], skew_df["Call IV"], marker="o", markersize=3, label="Call IV", color="#2ca02c")
+                ax1.plot(skew_df["strike_price"], skew_df["Put IV"], marker="o", markersize=3, label="Put IV", color="#d62728")
+                if spot_value is not None:
+                    ax1.axvline(spot_value, color="black", linestyle="--", linewidth=1, label=f"Spot {spot_value:,.0f}")
+
+                if not opps.empty:
+                    top_legs = opps.head(max_rows)
+                    iv_col = "Call IV" if option_type == "call_options" else "Put IV"
+                    iv_lookup = skew_df.set_index("strike_price")[iv_col]
+                    long_iv = iv_lookup.reindex(top_legs["long_strike"]).values
+                    short_iv = iv_lookup.reindex(top_legs["short_strike"]).values
+                    ax1.scatter(top_legs["long_strike"], long_iv, color="blue", marker="^", s=60, label="Long leg (scanner)", zorder=5)
+                    ax1.scatter(top_legs["short_strike"], short_iv, color="orange", marker="v", s=60, label="Short leg (scanner)", zorder=5)
+
+                ax1.set_ylabel("Implied Volatility (%)")
+                ax1.set_title(f"BTC IV Skew — {selected_expiry}")
+                ax1.legend(loc="upper right", fontsize=8)
+                ax1.grid(alpha=0.3)
+
+                ax2.plot(skew_df["strike_price"], skew_df["Put/Call IV Ratio"], color="#9467bd", marker="o", markersize=3)
+                ax2.axhline(1.0, color="black", linestyle="--", linewidth=1)
+                if spot_value is not None:
+                    ax2.axvline(spot_value, color="black", linestyle="--", linewidth=1)
+                ax2.set_ylabel("Put IV / Call IV")
+                ax2.set_xlabel("Strike Price")
+                ax2.grid(alpha=0.3)
+
+                st.pyplot(fig)
+            except ImportError:
+                st.info("matplotlib isn't installed, so here's the built-in chart instead. Run `pip install matplotlib` for the full skew view with spot/ratio-leg markers.")
+                st.line_chart(skew_df.set_index("strike_price")[["Call IV", "Put IV"]])
+                st.line_chart(skew_df.set_index("strike_price")[["Put/Call IV Ratio"]])
+
+            st.dataframe(
+                format_numeric_columns(skew_df[["strike_price", "Call IV", "Put IV", "Put/Call IV Ratio"]]),
+                use_container_width=True, height=300
+            )
+            st.download_button(
+                "Download skew data CSV",
+                skew_df.to_csv(index=False).encode("utf-8"),
+                f"btc_iv_skew_{selected_expiry}.csv", "text/csv"
+            )
+
 except requests.HTTPError as e:
     st.error(f"HTTP error: {e}")
 except Exception as e:
     st.error(f"Error: {e}")
+
