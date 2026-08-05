@@ -191,6 +191,61 @@ def find_ratio_spreads(df, option_type, qty_long, qty_short, min_credit, min_oi,
         res = res.sort_values(["net_credit", "width"], ascending=[False, False]).reset_index(drop=True)
     return res
 
+def find_atm_width_ratios(df, option_type, atm_strike, qty_long, qty_short, widths, price_mode):
+    """
+    Anchors the long leg at atm_strike (qty_long) and, for each requested width,
+    finds the nearest available short strike (qty_short) at that distance from ATM.
+    Returns one row per width. New function, does not alter find_ratio_spreads.
+    """
+    sub = df[df["contract_type"] == option_type].copy()
+    sub["strike_price"] = pd.to_numeric(sub["strike_price"], errors="coerce")
+    sub = sub.dropna(subset=["strike_price"]).sort_values("strike_price").reset_index(drop=True)
+    if sub.empty or atm_strike is None:
+        return pd.DataFrame()
+
+    long_matches = sub[sub["strike_price"] == atm_strike]
+    long_row = long_matches.iloc[0] if not long_matches.empty else sub.iloc[(sub["strike_price"] - atm_strike).abs().idxmin()]
+    long_strike = long_row["strike_price"]
+    buy_price = premium_buy(long_row, price_mode)
+
+    available_strikes = sub["strike_price"]
+    rows = []
+    for w in widths:
+        target = long_strike + w if option_type == "call_options" else long_strike - w
+        short_strike = available_strikes.iloc[(available_strikes - target).abs().idxmin()]
+        if short_strike == long_strike:
+            continue
+        short_row = sub[sub["strike_price"] == short_strike].iloc[0]
+        sell_price = premium_sell(short_row, price_mode)
+        if pd.isna(buy_price) or pd.isna(sell_price):
+            continue
+        actual_width = (short_strike - long_strike) if option_type == "call_options" else (long_strike - short_strike)
+        net_credit = qty_short * sell_price - qty_long * buy_price
+        max_profit = net_credit + actual_width * qty_long
+        denom = max(qty_short - qty_long, 1)
+        breakeven = short_strike + max_profit / denom if option_type == "call_options" else short_strike - max_profit / denom
+        long_iv = long_row.get("ask_iv") if pd.notna(long_row.get("ask_iv")) else long_row.get("bid_iv")
+        short_iv = short_row.get("bid_iv") if pd.notna(short_row.get("bid_iv")) else short_row.get("ask_iv")
+        rows.append({
+            "Requested Width": w,
+            "Actual Width": actual_width,
+            "Long Strike": long_strike,
+            "Short Strike": short_strike,
+            "Buy Price": buy_price,
+            "Sell Price": sell_price,
+            "Net Credit": net_credit,
+            "Max Profit": max_profit,
+            "Breakeven": breakeven,
+            "Long IV%": long_iv * 100 if pd.notna(long_iv) else None,
+            "Short IV%": short_iv * 100 if pd.notna(short_iv) else None,
+            "IV Diff": (long_iv - short_iv) * 100 if pd.notna(long_iv) and pd.notna(short_iv) else None,
+            "Long OI": long_row.get("oi"),
+            "Short OI": short_row.get("oi"),
+            "Long Vol": long_row.get("volume"),
+            "Short Vol": short_row.get("volume"),
+        })
+    return pd.DataFrame(rows)
+
 def format_numeric_columns(df):
     out = df.copy()
     for col in out.columns:
@@ -260,6 +315,108 @@ try:
         ]
         st.dataframe(show_df, use_container_width=True, height=420)
         st.download_button("Download opportunities CSV", opps.to_csv(index=False).encode("utf-8"), f"delta_ratio_spreads_{selected_expiry}.csv", "text/csv")
+
+    # ==========================================================================
+    # NEW SECTION (added below scanner, does not modify anything above)
+    # BTC Option Chain — Put | Strike | Call layout, mirroring the NIFTY/SENSEX
+    # Put-Strike-Call sheet style: strikes down the middle, Puts on the left,
+    # Calls on the right, ATM row highlighted.
+    # ==========================================================================
+    st.markdown("---")
+    st.subheader("BTC Option Chain — Put | Strike | Call Layout")
+
+    if chain.empty:
+        st.warning("No option chain data available to build the layout.")
+    else:
+        layout_df = chain.copy()
+        layout_df["call_iv"] = layout_df["call_ask_iv"].where(layout_df["call_ask_iv"].notna(), layout_df["call_bid_iv"]) * 100
+        layout_df["put_iv"] = layout_df["put_bid_iv"].where(layout_df["put_bid_iv"].notna(), layout_df["put_ask_iv"]) * 100
+
+        layout_cols = [
+            "put_oi", "put_volume", "put_delta", "put_iv", "put_bid", "put_ask", "put_mark",
+            "strike_price",
+            "call_mark", "call_bid", "call_ask", "call_iv", "call_delta", "call_volume", "call_oi",
+        ]
+        layout_names = [
+            "Put OI", "Put Vol", "Put Delta", "Put IV%", "Put Bid", "Put Ask", "Put Mark",
+            "STRIKE",
+            "Call Mark", "Call Bid", "Call Ask", "Call IV%", "Call Delta", "Call Vol", "Call OI",
+        ]
+        present = [c for c in layout_cols if c in layout_df.columns]
+        layout_df = layout_df[present].reset_index(drop=True)
+        layout_df.columns = [n for c, n in zip(layout_cols, layout_names) if c in present]
+
+        atm_idx = None
+        if spot_value is not None and layout_df["STRIKE"].notna().any():
+            atm_idx = (layout_df["STRIKE"] - spot_value).abs().idxmin()
+
+        def highlight_layout(row):
+            if atm_idx is not None and row.name == atm_idx:
+                return ["background-color: #ffe680; font-weight: bold;"] * len(row)
+            styles = [""] * len(row)
+            strike = row["STRIKE"]
+            if spot_value is not None and pd.notna(strike):
+                shade_prefix = "Call" if strike < spot_value else "Put"
+                for i, col in enumerate(row.index):
+                    if col.startswith(shade_prefix):
+                        styles[i] = "background-color: #eef1f5;"
+            return styles
+
+        styled_layout = layout_df.style.apply(highlight_layout, axis=1).format(precision=2)
+        st.dataframe(styled_layout, use_container_width=True, height=520)
+        st.caption(
+            "Yellow row = strike nearest current spot (ATM). Shaded cells mark the ITM side. "
+            "Columns mirror your Put | Strike | Call sheet; Delta Exchange doesn't expose the extra "
+            "distance/Greek grid columns from your Excel file, so tell me the formula behind those if you want them added."
+        )
+
+    # ==========================================================================
+    # NEW SECTION (added below scanner, does not modify anything above)
+    # ATM-anchored ratio table, Call side only: Buy 1 ATM call, sell N calls
+    # (default 1:10) across as many widths/differences from ATM as you enter.
+    # ==========================================================================
+    st.markdown("---")
+    st.subheader("ATM 1:10 Call Ratio — Multi-Width Table")
+
+    call_sub = option_df[option_df["contract_type"] == "call_options"].copy()
+    call_sub["strike_price"] = pd.to_numeric(call_sub["strike_price"], errors="coerce")
+    call_sub = call_sub.dropna(subset=["strike_price"])
+
+    if call_sub.empty or spot_value is None:
+        st.warning("No call strikes available to anchor an ATM ratio table.")
+    else:
+        atm_strike = float(call_sub.loc[(call_sub["strike_price"] - spot_value).abs().idxmin(), "strike_price"])
+
+        wc1, wc2, wc3 = st.columns([1, 1, 2])
+        atm_long_qty = wc1.number_input("Long qty (ATM)", min_value=1, value=1, step=1, key="atm_long_qty")
+        atm_short_qty = wc2.number_input("Short qty per leg", min_value=1, value=10, step=1, key="atm_short_qty")
+        widths_input = wc3.text_input(
+            "Widths / differences from ATM (comma separated)",
+            value="500,1000,1500,2000,2500,3000",
+            key="atm_widths_input"
+        )
+        try:
+            widths = sorted(set(float(w.strip()) for w in widths_input.split(",") if w.strip() != ""))
+        except ValueError:
+            widths = []
+            st.error("Couldn't parse the widths — use comma-separated numbers, e.g. 500,1000,1500")
+
+        st.caption(f"ATM Call strike (nearest to spot {spot_value:,.2f}): **{atm_strike:,.0f}**  |  Ratio {int(atm_long_qty)}:{int(atm_short_qty)}")
+
+        if widths:
+            atm_table = find_atm_width_ratios(option_df, "call_options", atm_strike, int(atm_long_qty), int(atm_short_qty), widths, price_mode)
+            if atm_table.empty:
+                st.warning("No valid strikes found for the widths entered.")
+            else:
+                st.dataframe(format_numeric_columns(atm_table), use_container_width=True, height=380)
+                st.download_button(
+                    "Download ATM ratio table CSV",
+                    atm_table.to_csv(index=False).encode("utf-8"),
+                    f"btc_atm_ratio_{int(atm_long_qty)}_{int(atm_short_qty)}_{selected_expiry}.csv",
+                    "text/csv"
+                )
+        else:
+            st.info("Enter at least one width above to build the table.")
 
 except requests.HTTPError as e:
     st.error(f"HTTP error: {e}")
