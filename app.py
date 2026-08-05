@@ -387,26 +387,29 @@ try:
     else:
         atm_strike = float(call_sub.loc[(call_sub["strike_price"] - spot_value).abs().idxmin(), "strike_price"])
 
-        wc1, wc2, wc3 = st.columns([1, 1, 2])
+        wc1, wc2, wc3, wc4 = st.columns([1, 1, 1, 1])
         atm_long_qty = wc1.number_input("Long qty (ATM)", min_value=1, value=1, step=1, key="atm_long_qty")
         atm_short_qty = wc2.number_input("Short qty per leg", min_value=1, value=10, step=1, key="atm_short_qty")
-        widths_input = wc3.text_input(
-            "Widths / differences from ATM (comma separated)",
-            value="500,1000,1500,2000,2500,3000",
-            key="atm_widths_input"
-        )
-        try:
-            widths = sorted(set(float(w.strip()) for w in widths_input.split(",") if w.strip() != ""))
-        except ValueError:
-            widths = []
-            st.error("Couldn't parse the widths — use comma-separated numbers, e.g. 500,1000,1500")
+        start_diff = wc3.number_input("Start difference", min_value=0, value=600, step=50, key="atm_start_diff")
+        end_diff = wc4.number_input("End difference", min_value=0, value=1400, step=50, key="atm_end_diff")
 
-        st.caption(f"ATM Call strike (nearest to spot {spot_value:,.2f}): **{atm_strike:,.0f}**  |  Ratio {int(atm_long_qty)}:{int(atm_short_qty)}")
+        lo_diff, hi_diff = (start_diff, end_diff) if start_diff <= end_diff else (end_diff, start_diff)
+        strikes_in_band = call_sub.loc[
+            (call_sub["strike_price"] >= atm_strike + lo_diff) & (call_sub["strike_price"] <= atm_strike + hi_diff),
+            "strike_price"
+        ].sort_values().unique()
+        widths = [float(s - atm_strike) for s in strikes_in_band]
+
+        st.caption(
+            f"ATM Call strike (nearest to spot {spot_value:,.2f}): **{atm_strike:,.0f}**  |  "
+            f"Ratio {int(atm_long_qty)}:{int(atm_short_qty)}  |  "
+            f"Scanning {len(widths)} strike(s) between +{lo_diff:.0f} and +{hi_diff:.0f} from ATM"
+        )
 
         if widths:
             atm_table = find_atm_width_ratios(option_df, "call_options", atm_strike, int(atm_long_qty), int(atm_short_qty), widths, price_mode)
             if atm_table.empty:
-                st.warning("No valid strikes found for the widths entered.")
+                st.warning("No valid strikes found in that difference range.")
             else:
                 st.dataframe(format_numeric_columns(atm_table), use_container_width=True, height=380)
                 st.download_button(
@@ -416,9 +419,10 @@ try:
                     "text/csv"
                 )
         else:
-            st.info("Enter at least one width above to build the table.")
+            st.info("No call strikes fall inside the start/end difference range — try widening it.")
 
 except requests.HTTPError as e:
     st.error(f"HTTP error: {e}")
 except Exception as e:
     st.error(f"Error: {e}")
+                        
