@@ -367,6 +367,57 @@ try:
         else:
             st.info("No call strikes fall inside the start/end difference range — try widening it.")
 
+    # ==========================================================================
+    # NEW SECTION (added below the Call width table, does not modify anything above)
+    # ATM-anchored ratio table, Put side: Buy 1 ATM put, sell N puts
+    # (default 1:10) across as many widths/differences from ATM as you enter.
+    # ==========================================================================
+    st.markdown("---")
+    st.subheader("ATM Curve Finder — Put Side")
+
+    put_sub = option_df[option_df["contract_type"] == "put_options"].copy()
+    put_sub["strike_price"] = pd.to_numeric(put_sub["strike_price"], errors="coerce")
+    put_sub = put_sub.dropna(subset=["strike_price"])
+
+    if put_sub.empty or spot_value is None:
+        st.warning("No put strikes available to anchor an ATM ratio table.")
+    else:
+        atm_strike_put = float(put_sub.loc[(put_sub["strike_price"] - spot_value).abs().idxmin(), "strike_price"])
+
+        wp1, wp2, wp3, wp4 = st.columns([1, 1, 1, 1])
+        atm_long_qty_put = wp1.number_input("Long qty (ATM)", min_value=1, value=1, step=1, key="atm_long_qty_put")
+        atm_short_qty_put = wp2.number_input("Short qty per leg", min_value=1, value=10, step=1, key="atm_short_qty_put")
+        start_diff_put = wp3.number_input("Start difference", min_value=0, value=600, step=100, key="atm_start_diff_put")
+        end_diff_put = wp4.number_input("End difference", min_value=0, value=1400, step=100, key="atm_end_diff_put")
+
+        lo_diff_put, hi_diff_put = (start_diff_put, end_diff_put) if start_diff_put <= end_diff_put else (end_diff_put, start_diff_put)
+        strikes_in_band_put = put_sub.loc[
+            (put_sub["strike_price"] <= atm_strike_put - lo_diff_put) & (put_sub["strike_price"] >= atm_strike_put - hi_diff_put),
+            "strike_price"
+        ].sort_values(ascending=False).unique()
+        widths_put = [float(atm_strike_put - s) for s in strikes_in_band_put]
+
+        st.caption(
+            f"ATM Put strike (nearest to spot {spot_value:,.2f}): **{atm_strike_put:,.0f}**  |  "
+            f"Ratio {int(atm_long_qty_put)}:{int(atm_short_qty_put)}  |  "
+            f"Scanning {len(widths_put)} strike(s) between -{lo_diff_put:.0f} and -{hi_diff_put:.0f} from ATM"
+        )
+
+        if widths_put:
+            atm_table_put = find_atm_width_ratios(option_df, "put_options", atm_strike_put, int(atm_long_qty_put), int(atm_short_qty_put), widths_put, price_mode)
+            if atm_table_put.empty:
+                st.warning("No valid strikes found in that difference range.")
+            else:
+                st.dataframe(format_numeric_columns(atm_table_put), use_container_width=True, height=380)
+                st.download_button(
+                    "Download ATM ratio table CSV (Put)",
+                    atm_table_put.to_csv(index=False).encode("utf-8"),
+                    f"btc_atm_ratio_put_{int(atm_long_qty_put)}_{int(atm_short_qty_put)}_{selected_expiry}.csv",
+                    "text/csv"
+                )
+        else:
+            st.info("No put strikes fall inside the start/end difference range — try widening it.")
+
 except requests.HTTPError as e:
     st.error(f"HTTP error: {e}")
 except Exception as e:
