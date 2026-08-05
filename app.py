@@ -256,7 +256,7 @@ def format_numeric_columns(df):
 with st.sidebar:
     refresh_seconds = st.slider("Auto Refresh", 5, 10, 5, 1)
     strategy_side = st.selectbox("CE/PE", ["Call Ratios", "Put Ratios"])
-    ratio_start = st.number_input("Show Ratios from", min_value=2, max_value=20, value=5, step=1)
+    ratio_start = st.number_input("Show Ratios from", min_value=2, max_value=20, value=10, step=1)
     ratio_end = st.number_input("Show Ratios till", min_value=2, max_value=20, value=10, step=1)
     price_mode = st.selectbox("Premium", ["Default", "Mark Price (Inaccurate)"], index=0)
     min_credit = st.number_input("Minimum Net Credit", min_value=0.0, value=2.0, step=1.0)
