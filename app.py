@@ -9,7 +9,7 @@ HEADERS = {
     "User-Agent": "streamlit-option-chain-app"
 }
 
-st.set_page_config(page_title="Delta BTC Ratio Spread Scanner", layout="wide")
+st.set_page_config(page_title="BTCUSD Parity", layout="wide")
 st.title("BTCUSD Parity")
 
 @st.cache_data(ttl=30)
@@ -322,7 +322,7 @@ try:
     # (default 1:10) across as many widths/differences from ATM as you enter.
     # ==========================================================================
     st.markdown("---")
-    st.subheader("ATM Curve Finder - CalL Side")
+    st.subheader("ATM Curve Finder - Call Side")
 
     call_sub = option_df[option_df["contract_type"] == "call_options"].copy()
     call_sub["strike_price"] = pd.to_numeric(call_sub["strike_price"], errors="coerce")
