@@ -318,60 +318,6 @@ try:
 
     # ==========================================================================
     # NEW SECTION (added below scanner, does not modify anything above)
-    # BTC Option Chain — Put | Strike | Call layout, mirroring the NIFTY/SENSEX
-    # Put-Strike-Call sheet style: strikes down the middle, Puts on the left,
-    # Calls on the right, ATM row highlighted.
-    # ==========================================================================
-    st.markdown("---")
-    st.subheader("BTC Option Chain — Put | Strike | Call Layout")
-
-    if chain.empty:
-        st.warning("No option chain data available to build the layout.")
-    else:
-        layout_df = chain.copy()
-        layout_df["call_iv"] = layout_df["call_ask_iv"].where(layout_df["call_ask_iv"].notna(), layout_df["call_bid_iv"]) * 100
-        layout_df["put_iv"] = layout_df["put_bid_iv"].where(layout_df["put_bid_iv"].notna(), layout_df["put_ask_iv"]) * 100
-
-        layout_cols = [
-            "put_oi", "put_volume", "put_delta", "put_iv", "put_bid", "put_ask", "put_mark",
-            "strike_price",
-            "call_mark", "call_bid", "call_ask", "call_iv", "call_delta", "call_volume", "call_oi",
-        ]
-        layout_names = [
-            "Put OI", "Put Vol", "Put Delta", "Put IV%", "Put Bid", "Put Ask", "Put Mark",
-            "STRIKE",
-            "Call Mark", "Call Bid", "Call Ask", "Call IV%", "Call Delta", "Call Vol", "Call OI",
-        ]
-        present = [c for c in layout_cols if c in layout_df.columns]
-        layout_df = layout_df[present].reset_index(drop=True)
-        layout_df.columns = [n for c, n in zip(layout_cols, layout_names) if c in present]
-
-        atm_idx = None
-        if spot_value is not None and layout_df["STRIKE"].notna().any():
-            atm_idx = (layout_df["STRIKE"] - spot_value).abs().idxmin()
-
-        def highlight_layout(row):
-            if atm_idx is not None and row.name == atm_idx:
-                return ["background-color: #ffe680; font-weight: bold;"] * len(row)
-            styles = [""] * len(row)
-            strike = row["STRIKE"]
-            if spot_value is not None and pd.notna(strike):
-                shade_prefix = "Call" if strike < spot_value else "Put"
-                for i, col in enumerate(row.index):
-                    if col.startswith(shade_prefix):
-                        styles[i] = "background-color: #eef1f5;"
-            return styles
-
-        styled_layout = layout_df.style.apply(highlight_layout, axis=1).format(precision=2)
-        st.dataframe(styled_layout, use_container_width=True, height=520)
-        st.caption(
-            "Yellow row = strike nearest current spot (ATM). Shaded cells mark the ITM side. "
-            "Columns mirror your Put | Strike | Call sheet; Delta Exchange doesn't expose the extra "
-            "distance/Greek grid columns from your Excel file, so tell me the formula behind those if you want them added."
-        )
-
-    # ==========================================================================
-    # NEW SECTION (added below scanner, does not modify anything above)
     # ATM-anchored ratio table, Call side only: Buy 1 ATM call, sell N calls
     # (default 1:10) across as many widths/differences from ATM as you enter.
     # ==========================================================================
@@ -390,8 +336,8 @@ try:
         wc1, wc2, wc3, wc4 = st.columns([1, 1, 1, 1])
         atm_long_qty = wc1.number_input("Long qty (ATM)", min_value=1, value=1, step=1, key="atm_long_qty")
         atm_short_qty = wc2.number_input("Short qty per leg", min_value=1, value=10, step=1, key="atm_short_qty")
-        start_diff = wc3.number_input("Start difference", min_value=0, value=600, step=50, key="atm_start_diff")
-        end_diff = wc4.number_input("End difference", min_value=0, value=1400, step=50, key="atm_end_diff")
+        start_diff = wc3.number_input("Start difference", min_value=0, value=600, step=100, key="atm_start_diff")
+        end_diff = wc4.number_input("End difference", min_value=0, value=1400, step=100, key="atm_end_diff")
 
         lo_diff, hi_diff = (start_diff, end_diff) if start_diff <= end_diff else (end_diff, start_diff)
         strikes_in_band = call_sub.loc[
@@ -425,4 +371,3 @@ except requests.HTTPError as e:
     st.error(f"HTTP error: {e}")
 except Exception as e:
     st.error(f"Error: {e}")
-                        
