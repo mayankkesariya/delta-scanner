@@ -322,7 +322,7 @@ try:
     # (default 1:10) across as many widths/differences from ATM as you enter.
     # ==========================================================================
     st.markdown("---")
-    st.subheader("ATM Curve Finder")
+    st.subheader("ATM Curve Finder - CalL Side")
 
     call_sub = option_df[option_df["contract_type"] == "call_options"].copy()
     call_sub["strike_price"] = pd.to_numeric(call_sub["strike_price"], errors="coerce")
@@ -367,13 +367,13 @@ try:
         else:
             st.info("No call strikes fall inside the start/end difference range — try widening it.")
 
-    # ==========================================================================
+ # ==========================================================================
     # NEW SECTION (added below the Call width table, does not modify anything above)
     # ATM-anchored ratio table, Put side: Buy 1 ATM put, sell N puts
     # (default 1:10) across as many widths/differences from ATM as you enter.
     # ==========================================================================
     st.markdown("---")
-    st.subheader("ATM Curve Finder — Put Side")
+    st.subheader("ATM Curve Finder - Put Side")
 
     put_sub = option_df[option_df["contract_type"] == "put_options"].copy()
     put_sub["strike_price"] = pd.to_numeric(put_sub["strike_price"], errors="coerce")
