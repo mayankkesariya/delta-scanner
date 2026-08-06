@@ -463,7 +463,8 @@ try:
     # ==========================================================================
     st.markdown("---")
     st.title("BTCUSD Skew Curve")
-    st.subheader("You can manually edit the input values for Farak & Ratio")
+    st.subheader("")
+    st.caption("You can manually edit the input values for Farak & Ratio")
 
     matrix_call_sub = option_df[option_df["contract_type"] == "call_options"].copy()
     matrix_call_sub["strike_price"] = pd.to_numeric(matrix_call_sub["strike_price"], errors="coerce")
