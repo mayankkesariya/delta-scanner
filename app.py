@@ -400,7 +400,13 @@ try:
                     columns={"Actual Width": "Width"}
                 )
                 st.dataframe(format_numeric_columns(atm_table_view), use_container_width=True, height=380)
-                        else:
+                
+                    
+                    
+                   
+                  
+                )
+        else:
             st.info("No call strikes fall inside the start/end difference range — try widening it.")
 
     # ==========================================================================
