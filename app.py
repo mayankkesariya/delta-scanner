@@ -327,7 +327,6 @@ try:
     option_df = enrich_option_rows(option_rows)
 
     c1, c2, c3 = st.columns(3)
-    
     spot_candidates = pd.to_numeric(pd.DataFrame(option_rows).get("spot_price"), errors="coerce").dropna()
     spot_value = float(spot_candidates.iloc[0]) if not spot_candidates.empty else None
     c2.metric("Spot Price", f"{spot_value:,.2f}" if spot_value is not None else "NA")
