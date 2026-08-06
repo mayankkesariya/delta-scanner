@@ -531,11 +531,7 @@ try:
         all_put_strikes = sorted(matrix_put_sub["strike_price"].unique())
         strikes_from_atm_put = [s for s in reversed(all_put_strikes) if s <= atm_strike_matrix_put]
 
-        st.caption(
-            f"ATM Put strike: **{atm_strike_matrix_put:,.0f}**  |  "
-            f"Rows run from ATM down to the last available put strike (**{strikes_from_atm_put[-1] if strikes_from_atm_put else atm_strike_matrix_put:,.0f}**). "
-            f"Edit Width / Ratio directly in the top two rows below."
-        )
+        
 
         put_slot_labels = [str(i + 1) for i in range(6)]
         default_put_header = pd.DataFrame(
