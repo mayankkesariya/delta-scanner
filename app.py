@@ -378,10 +378,10 @@ try:
         atm_strike = float(call_sub.loc[(call_sub["strike_price"] - spot_value).abs().idxmin(), "strike_price"])
 
         wc1, wc2, wc3, wc4 = st.columns([1, 1, 1, 1])
-        atm_long_qty = wc1.number_input("Long qty (ATM)", min_value=1, max_value=1, value=1, step=1, key="atm_long_qty")
-        atm_short_qty = wc2.number_input("Short qty per leg", min_value=1, value=10, step=1, key="atm_short_qty")
-        start_diff = wc3.number_input("Start difference", min_value=0, value=600, step=100, key="atm_start_diff")
-        end_diff = wc4.number_input("End difference", min_value=0, value=1400, step=100, key="atm_end_diff")
+        atm_long_qty = wc1.number_input("ATM Long", min_value=1, max_value=1, value=1, step=1, key="atm_long_qty")
+        atm_short_qty = wc2.number_input("Ratio", min_value=1, value=10, step=1, key="atm_short_qty")
+        start_diff = wc3.number_input("Start Farak", min_value=0, value=600, step=100, key="atm_start_diff")
+        end_diff = wc4.number_input("End Farak", min_value=0, value=2400, step=100, key="atm_end_diff")
 
         lo_diff, hi_diff = (start_diff, end_diff) if start_diff <= end_diff else (end_diff, start_diff)
         strikes_in_band = call_sub.loc[
@@ -390,12 +390,7 @@ try:
         ].sort_values().unique()
         widths = [float(s - atm_strike) for s in strikes_in_band]
 
-        st.caption(
-            f"ATM Call strike (nearest to spot {spot_value:,.2f}): **{atm_strike:,.0f}**  |  "
-            f"Ratio {int(atm_long_qty)}:{int(atm_short_qty)}  |  "
-            f"Scanning {len(widths)} strike(s) between +{lo_diff:.0f} and +{hi_diff:.0f} from ATM"
-        )
-
+        
         if widths:
             atm_table = find_atm_width_ratios(option_df, "call_options", atm_strike, int(atm_long_qty), int(atm_short_qty), widths, price_mode)
             if atm_table.empty:
@@ -405,13 +400,7 @@ try:
                     columns={"Actual Width": "Width"}
                 )
                 st.dataframe(format_numeric_columns(atm_table_view), use_container_width=True, height=380)
-                st.download_button(
-                    "Download ATM ratio table CSV",
-                    atm_table_view.to_csv(index=False).encode("utf-8"),
-                    f"btc_atm_ratio_{int(atm_long_qty)}_{int(atm_short_qty)}_{selected_expiry}.csv",
-                    "text/csv"
-                )
-        else:
+                        else:
             st.info("No call strikes fall inside the start/end difference range — try widening it.")
 
     # ==========================================================================
