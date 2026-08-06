@@ -1,0 +1,12 @@
+[server]
+enableStaticServing = true
+
+[[theme.fontFaces]]
+family = "SF Pro"
+url = "app/static/SF Pro.ttf"
+style = "normal"
+weight = 400
+
+[theme]
+font = "SF Pro"
+headingFont = "SF Pro"
