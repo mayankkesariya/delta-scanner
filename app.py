@@ -463,7 +463,7 @@ try:
     # ==========================================================================
     st.markdown("---")
     st.title("BTCUSD Skew Curve")
-    st.subheader("")
+    st.subheader("You can manually edit the input values for Farak & Ratio")
 
     matrix_call_sub = option_df[option_df["contract_type"] == "call_options"].copy()
     matrix_call_sub["strike_price"] = pd.to_numeric(matrix_call_sub["strike_price"], errors="coerce")
@@ -481,7 +481,7 @@ try:
         call_slot_labels = [str(i + 1) for i in range(6)]
         default_call_header = pd.DataFrame(
             [[800, 1000, 1200, 1400, 1600, 1800], [10, 10, 10, 10, 10, 10]],
-            index=["Width", "Ratio"],
+            index=["Farak", "Ratio"],
             columns=call_slot_labels
         )
         call_header_edited = st.data_editor(
@@ -492,10 +492,10 @@ try:
         )
 
         call_column_defs = [
-            (float(call_header_edited.loc["Width", c]), int(call_header_edited.loc["Ratio", c]))
+            (float(call_header_edited.loc["Farak", c]), int(call_header_edited.loc["Ratio", c]))
             for c in call_slot_labels
-            if pd.notna(call_header_edited.loc["Width", c]) and pd.notna(call_header_edited.loc["Ratio", c])
-            and call_header_edited.loc["Width", c] > 0 and call_header_edited.loc["Ratio", c] > 0
+            if pd.notna(call_header_edited.loc["Farak", c]) and pd.notna(call_header_edited.loc["Ratio", c])
+            and call_header_edited.loc["Farak", c] > 0 and call_header_edited.loc["Ratio", c] > 0
         ]
 
         if not call_column_defs:
