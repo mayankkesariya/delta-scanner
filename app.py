@@ -248,9 +248,10 @@ def find_atm_width_ratios(df, option_type, atm_strike, qty_long, qty_short, widt
 
 def build_ratio_matrix(df, option_type, base_strikes, width_ratio_pairs, price_mode):
     """
-    Builds a Strike x Width matrix (rows = base_strikes used as the long leg,
-    columns = each (width, ratio) pair). Each cell is the Net Credit for
-    Buy 1 lot @ row strike / Sell `ratio` lots @ nearest strike (row strike +/- width).
+    Builds a Strike x Width matrix (rows = base_strikes used as the long leg).
+    Columns: Strike, Mark Price (of that strike), then each (width, ratio) pair.
+    Each ratio cell is the Net Credit for Buy 1 lot @ row strike / Sell `ratio`
+    lots @ nearest strike (row strike +/- width).
     New function - does not alter find_ratio_spreads or find_atm_width_ratios.
     """
     sub = df[df["contract_type"] == option_type].copy()
@@ -259,19 +260,20 @@ def build_ratio_matrix(df, option_type, base_strikes, width_ratio_pairs, price_m
     if sub.empty or not base_strikes or not width_ratio_pairs:
         return pd.DataFrame()
 
-    col_tuples = [(f"{int(w)}", f"1:{int(r)}") for w, r in width_ratio_pairs]
+    col_tuples = [("Strike", ""), ("Mark Price", "")] + [(f"{int(w)}", f"1:{int(r)}") for w, r in width_ratio_pairs]
     columns = pd.MultiIndex.from_tuples(col_tuples, names=["Width", "Ratio"])
 
     data_rows = []
     for base in base_strikes:
         long_matches = sub[sub["strike_price"] == base]
         if long_matches.empty:
-            data_rows.append([None] * len(width_ratio_pairs))
+            data_rows.append([base, None] + [None] * len(width_ratio_pairs))
             continue
         long_row = long_matches.iloc[0]
         buy_price = premium_buy(long_row, price_mode)
+        mark_price = long_row.get("mark_price")
         candidates = sub[sub["strike_price"] > base] if option_type == "call_options" else sub[sub["strike_price"] < base]
-        row_vals = []
+        row_vals = [base, round(float(mark_price), 2) if pd.notna(mark_price) else None]
         for w, r in width_ratio_pairs:
             if candidates.empty or pd.isna(buy_price):
                 row_vals.append(None)
@@ -287,8 +289,7 @@ def build_ratio_matrix(df, option_type, base_strikes, width_ratio_pairs, price_m
             row_vals.append(round(float(net_credit), 2))
         data_rows.append(row_vals)
 
-    matrix = pd.DataFrame(data_rows, index=[f"{int(b)}" for b in base_strikes], columns=columns)
-    matrix.index.name = "Strike"
+    matrix = pd.DataFrame(data_rows, columns=columns)
     return matrix
 
 def format_numeric_columns(df):
@@ -301,17 +302,17 @@ def format_numeric_columns(df):
 with st.sidebar:
     refresh_seconds = st.slider("Auto Refresh", 5, 10, 5, 1)
     strategy_side = st.selectbox("CE/PE", ["Call Ratios", "Put Ratios"])
-    ratio_start = st.number_input("Show Ratios from", min_value=2, max_value=20, value=10, step=1)
+    ratio_start = st.number_input("Show Ratios from", min_value=2, max_value=20, value=5, step=1)
     ratio_end = st.number_input("Show Ratios till", min_value=2, max_value=20, value=10, step=1)
     price_mode = st.selectbox("Premium", ["Default", "Mark Price (Inaccurate)"], index=0)
-    min_credit = st.number_input("Minimum Net Credit", min_value=0.0, value=20.0, step=1.0)
+    min_credit = st.number_input("Minimum Net Credit", min_value=0.0, value=2.0, step=1.0)
     width_min = st.number_input("Minimum Farak", min_value=0, value=800, step=200)
     width_max = st.number_input("Maximum Farak", min_value=0, value=2400, step=200)
     max_rows = st.slider("Top opportunities", 5, 50, 50, 5)
 
 st.markdown(f"<script>setTimeout(function(){{window.location.reload();}}, {refresh_seconds * 1000});</script>", unsafe_allow_html=True)
 
-if st.button("Refresh Now"):
+if st.button("Refresh now"):
     st.cache_data.clear()
 
 try:
@@ -321,16 +322,17 @@ try:
         st.error("No BTC option expiries found.")
         st.stop()
 
-    selected_expiry = st.selectbox("Select Expiry", expiries, index=0)
+    selected_expiry = st.selectbox("Select expiry", expiries, index=0)
     option_rows = fetch_option_chain("BTC", selected_expiry)
     chain = build_chain_table(option_rows)
     option_df = enrich_option_rows(option_rows)
 
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Contracts fetched", len(option_rows))
     spot_candidates = pd.to_numeric(pd.DataFrame(option_rows).get("spot_price"), errors="coerce").dropna()
     spot_value = float(spot_candidates.iloc[0]) if not spot_candidates.empty else None
-    c1.metric("Spot Price", f"{spot_value:,.2f}" if spot_value is not None else "NA")
-    c2.metric("Selected Expiry", selected_expiry)
+    c2.metric("Spot Price", f"{spot_value:,.2f}" if spot_value is not None else "NA")
+    c3.metric("Selected Expiry", selected_expiry)
 
     option_type = "call_options" if strategy_side == "Call Ratio Spread" else "put_options"
     start_ratio = min(ratio_start, ratio_end)
@@ -346,7 +348,7 @@ try:
         opps = opps.sort_values(["net_credit", "width"], ascending=[False, False]).reset_index(drop=True)
 
     st.subheader("Live Opportunities Available")
-    
+    st.caption(f"Scanning ratios from 1:{start_ratio} to 1:{end_ratio}")
     if opps.empty:
         st.warning("No opportunities found for the current filters.")
     else:
@@ -355,10 +357,10 @@ try:
             "ratio","long_strike","short_strike","width","buy_price","sell_price","net_credit","long_strike_iv","short_strike_iv","iv_difference"
         ]]
         show_df.columns = [
-            "Ratio","Long Strike","Short Strike","Farak","Buy Price","Sell Price","Net Credit","Long IV","Short IV","IV Difference"
+            "Ratio","Long Strike","Short Strike","Farak","Buy Price","Sell Price","Net Credit","Long Strike IV","Short Strike IV","IV Difference"
         ]
         st.dataframe(show_df, use_container_width=True, height=420)
-        
+        st.download_button("Download opportunities CSV", opps.to_csv(index=False).encode("utf-8"), f"delta_ratio_spreads_{selected_expiry}.csv", "text/csv")
 
     # ==========================================================================
     # NEW SECTION (added below scanner, does not modify anything above)
@@ -366,7 +368,7 @@ try:
     # (default 1:10) across as many widths/differences from ATM as you enter.
     # ==========================================================================
     st.markdown("---")
-    st.subheader("ATM Curve Finder - Call Side")
+    st.subheader("ATM Curve Finder")
 
     call_sub = option_df[option_df["contract_type"] == "call_options"].copy()
     call_sub["strike_price"] = pd.to_numeric(call_sub["strike_price"], errors="coerce")
@@ -378,10 +380,10 @@ try:
         atm_strike = float(call_sub.loc[(call_sub["strike_price"] - spot_value).abs().idxmin(), "strike_price"])
 
         wc1, wc2, wc3, wc4 = st.columns([1, 1, 1, 1])
-        atm_long_qty = wc1.number_input("ATM Long", min_value=1, max_value=1, value=1, step=1, key="atm_long_qty")
-        atm_short_qty = wc2.number_input("Ratio", min_value=1, value=10, step=1, key="atm_short_qty")
-        start_diff = wc3.number_input("Start Farak", min_value=0, value=600, step=100, key="atm_start_diff")
-        end_diff = wc4.number_input("End Farak", min_value=0, value=2400, step=100, key="atm_end_diff")
+        atm_long_qty = wc1.number_input("Long qty (ATM)", min_value=1, value=1, step=1, key="atm_long_qty")
+        atm_short_qty = wc2.number_input("Short qty per leg", min_value=1, value=10, step=1, key="atm_short_qty")
+        start_diff = wc3.number_input("Start difference", min_value=0, value=600, step=100, key="atm_start_diff")
+        end_diff = wc4.number_input("End difference", min_value=0, value=1400, step=100, key="atm_end_diff")
 
         lo_diff, hi_diff = (start_diff, end_diff) if start_diff <= end_diff else (end_diff, start_diff)
         strikes_in_band = call_sub.loc[
@@ -390,7 +392,12 @@ try:
         ].sort_values().unique()
         widths = [float(s - atm_strike) for s in strikes_in_band]
 
-        
+        st.caption(
+            f"ATM Call strike (nearest to spot {spot_value:,.2f}): **{atm_strike:,.0f}**  |  "
+            f"Ratio {int(atm_long_qty)}:{int(atm_short_qty)}  |  "
+            f"Scanning {len(widths)} strike(s) between +{lo_diff:.0f} and +{hi_diff:.0f} from ATM"
+        )
+
         if widths:
             atm_table = find_atm_width_ratios(option_df, "call_options", atm_strike, int(atm_long_qty), int(atm_short_qty), widths, price_mode)
             if atm_table.empty:
@@ -400,12 +407,12 @@ try:
                     columns={"Actual Width": "Width"}
                 )
                 st.dataframe(format_numeric_columns(atm_table_view), use_container_width=True, height=380)
-                
-                    
-                    
-                   
-                  
-                
+                st.download_button(
+                    "Download ATM ratio table CSV",
+                    atm_table_view.to_csv(index=False).encode("utf-8"),
+                    f"btc_atm_ratio_{int(atm_long_qty)}_{int(atm_short_qty)}_{selected_expiry}.csv",
+                    "text/csv"
+                )
         else:
             st.info("No call strikes fall inside the start/end difference range — try widening it.")
 
@@ -415,7 +422,7 @@ try:
     # (default 1:10) across as many widths/differences from ATM as you enter.
     # ==========================================================================
     st.markdown("---")
-    st.subheader("ATM Curve Finder - Put Side")
+    st.subheader("ATM Curve Finder — Put Side")
 
     put_sub = option_df[option_df["contract_type"] == "put_options"].copy()
     put_sub["strike_price"] = pd.to_numeric(put_sub["strike_price"], errors="coerce")
@@ -427,10 +434,10 @@ try:
         atm_strike_put = float(put_sub.loc[(put_sub["strike_price"] - spot_value).abs().idxmin(), "strike_price"])
 
         wp1, wp2, wp3, wp4 = st.columns([1, 1, 1, 1])
-        atm_long_qty_put = wp1.number_input("ATM Long", min_value=1, max_value=1, value=1, step=1, key="atm_long_qty_put")
-        atm_short_qty_put = wp2.number_input("Ratio", min_value=1, value=10, step=1, key="atm_short_qty_put")
-        start_diff_put = wp3.number_input("Start Farak", min_value=0, value=600, step=100, key="atm_start_diff_put")
-        end_diff_put = wp4.number_input("End Farak", min_value=0, value=2400, step=100, key="atm_end_diff_put")
+        atm_long_qty_put = wp1.number_input("Long qty (ATM)", min_value=1, value=1, step=1, key="atm_long_qty_put")
+        atm_short_qty_put = wp2.number_input("Short qty per leg", min_value=1, value=10, step=1, key="atm_short_qty_put")
+        start_diff_put = wp3.number_input("Start difference", min_value=0, value=600, step=100, key="atm_start_diff_put")
+        end_diff_put = wp4.number_input("End difference", min_value=0, value=1400, step=100, key="atm_end_diff_put")
 
         lo_diff_put, hi_diff_put = (start_diff_put, end_diff_put) if start_diff_put <= end_diff_put else (end_diff_put, start_diff_put)
         strikes_in_band_put = put_sub.loc[
@@ -439,7 +446,11 @@ try:
         ].sort_values(ascending=False).unique()
         widths_put = [float(atm_strike_put - s) for s in strikes_in_band_put]
 
-        
+        st.caption(
+            f"ATM Put strike (nearest to spot {spot_value:,.2f}): **{atm_strike_put:,.0f}**  |  "
+            f"Ratio {int(atm_long_qty_put)}:{int(atm_short_qty_put)}  |  "
+            f"Scanning {len(widths_put)} strike(s) between -{lo_diff_put:.0f} and -{hi_diff_put:.0f} from ATM"
+        )
 
         if widths_put:
             atm_table_put = find_atm_width_ratios(option_df, "put_options", atm_strike_put, int(atm_long_qty_put), int(atm_short_qty_put), widths_put, price_mode)
@@ -450,7 +461,12 @@ try:
                     columns={"Actual Width": "Width"}
                 )
                 st.dataframe(format_numeric_columns(atm_table_put_view), use_container_width=True, height=380)
-                
+                st.download_button(
+                    "Download ATM ratio table CSV (Put)",
+                    atm_table_put_view.to_csv(index=False).encode("utf-8"),
+                    f"btc_atm_ratio_put_{int(atm_long_qty_put)}_{int(atm_short_qty_put)}_{selected_expiry}.csv",
+                    "text/csv"
+                )
         else:
             st.info("No put strikes fall inside the start/end difference range — try widening it.")
 
@@ -462,10 +478,7 @@ try:
     # Ratio (1:N) in place; the strike rows below recompute live.
     # ==========================================================================
     st.markdown("---")
-    st.title("BTCUSD Skew Curve")
-    
-    st.subheader("Call Side")
-    st.caption("You can manually edit the input values for Farak & Ratio")
+    st.subheader("Strike × Width × Ratio Matrix — Call Side")
 
     matrix_call_sub = option_df[option_df["contract_type"] == "call_options"].copy()
     matrix_call_sub["strike_price"] = pd.to_numeric(matrix_call_sub["strike_price"], errors="coerce")
@@ -478,12 +491,16 @@ try:
         all_call_strikes = sorted(matrix_call_sub["strike_price"].unique())
         strikes_from_atm = [s for s in all_call_strikes if s >= atm_strike_matrix]
 
-        
+        st.caption(
+            f"ATM Call strike: **{atm_strike_matrix:,.0f}**  |  "
+            f"Rows run from ATM up to the last available call strike (**{strikes_from_atm[-1]:,.0f}**). "
+            f"Edit Width / Ratio directly in the top two rows below."
+        )
 
         call_slot_labels = [str(i + 1) for i in range(6)]
         default_call_header = pd.DataFrame(
-            [[800, 1000, 1200, 1400, 1600, 1800], [10, 10, 10, 10, 10, 10]],
-            index=["Farak", "Ratio"],
+            [[300, 450, 500, 600, 650, 700], [10, 10, 10, 10, 10, 10]],
+            index=["Width", "Ratio (1:N)"],
             columns=call_slot_labels
         )
         call_header_edited = st.data_editor(
@@ -494,10 +511,10 @@ try:
         )
 
         call_column_defs = [
-            (float(call_header_edited.loc["Farak", c]), int(call_header_edited.loc["Ratio", c]))
+            (float(call_header_edited.loc["Width", c]), int(call_header_edited.loc["Ratio (1:N)", c]))
             for c in call_slot_labels
-            if pd.notna(call_header_edited.loc["Farak", c]) and pd.notna(call_header_edited.loc["Ratio", c])
-            and call_header_edited.loc["Farak", c] > 0 and call_header_edited.loc["Ratio", c] > 0
+            if pd.notna(call_header_edited.loc["Width", c]) and pd.notna(call_header_edited.loc["Ratio (1:N)", c])
+            and call_header_edited.loc["Width", c] > 0 and call_header_edited.loc["Ratio (1:N)", c] > 0
         ]
 
         if not call_column_defs:
@@ -508,7 +525,13 @@ try:
                 st.warning("No data available to build the matrix.")
             else:
                 st.dataframe(call_matrix, use_container_width=True, height=560)
-               
+                st.caption("Each cell = Net Credit for Buy 1 lot @ row strike, Sell (ratio) lots @ nearest strike (row strike + width).")
+                st.download_button(
+                    "Download call ratio matrix CSV",
+                    call_matrix.to_csv(index=False).encode("utf-8"),
+                    f"btc_call_ratio_matrix_{selected_expiry}.csv",
+                    "text/csv"
+                )
 
     # ==========================================================================
     # NEW SECTION (added below the Call matrix, does not modify anything above)
@@ -517,8 +540,7 @@ try:
     # from ATM down to the last available put strike.
     # ==========================================================================
     st.markdown("---")
-    st.subheader("Put Side")
-    st.caption("You can manually edit the input values for Farak & Ratio")
+    st.subheader("Strike × Width × Ratio Matrix — Put Side")
 
     matrix_put_sub = option_df[option_df["contract_type"] == "put_options"].copy()
     matrix_put_sub["strike_price"] = pd.to_numeric(matrix_put_sub["strike_price"], errors="coerce")
@@ -531,12 +553,16 @@ try:
         all_put_strikes = sorted(matrix_put_sub["strike_price"].unique())
         strikes_from_atm_put = [s for s in reversed(all_put_strikes) if s <= atm_strike_matrix_put]
 
-        
+        st.caption(
+            f"ATM Put strike: **{atm_strike_matrix_put:,.0f}**  |  "
+            f"Rows run from ATM down to the last available put strike (**{strikes_from_atm_put[-1] if strikes_from_atm_put else atm_strike_matrix_put:,.0f}**). "
+            f"Edit Width / Ratio directly in the top two rows below."
+        )
 
         put_slot_labels = [str(i + 1) for i in range(6)]
         default_put_header = pd.DataFrame(
-            [[800, 1000, 1200, 1400, 1600, 1800], [10, 10, 10, 10, 10, 10]],
-            index=["Farak", "Ratio"],
+            [[300, 450, 500, 600, 650, 700], [10, 10, 10, 10, 10, 10]],
+            index=["Width", "Ratio (1:N)"],
             columns=put_slot_labels
         )
         put_header_edited = st.data_editor(
@@ -547,10 +573,10 @@ try:
         )
 
         put_column_defs = [
-            (float(put_header_edited.loc["Farak", c]), int(put_header_edited.loc["Ratio", c]))
+            (float(put_header_edited.loc["Width", c]), int(put_header_edited.loc["Ratio (1:N)", c]))
             for c in put_slot_labels
-            if pd.notna(put_header_edited.loc["Farak", c]) and pd.notna(put_header_edited.loc["Ratio", c])
-            and put_header_edited.loc["Farak", c] > 0 and put_header_edited.loc["Ratio", c] > 0
+            if pd.notna(put_header_edited.loc["Width", c]) and pd.notna(put_header_edited.loc["Ratio (1:N)", c])
+            and put_header_edited.loc["Width", c] > 0 and put_header_edited.loc["Ratio (1:N)", c] > 0
         ]
 
         if not put_column_defs:
@@ -561,7 +587,13 @@ try:
                 st.warning("No data available to build the matrix.")
             else:
                 st.dataframe(put_matrix, use_container_width=True, height=560)
-                
+                st.caption("Each cell = Net Credit for Buy 1 lot @ row strike, Sell (ratio) lots @ nearest strike (row strike − width).")
+                st.download_button(
+                    "Download put ratio matrix CSV",
+                    put_matrix.to_csv(index=False).encode("utf-8"),
+                    f"btc_put_ratio_matrix_{selected_expiry}.csv",
+                    "text/csv"
+                )
 
 except requests.HTTPError as e:
     st.error(f"HTTP error: {e}")
