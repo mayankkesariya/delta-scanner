@@ -494,7 +494,7 @@ try:
         call_column_defs = [
             (float(call_header_edited.loc["Width", c]), int(call_header_edited.loc["Ratio", c]))
             for c in call_slot_labels
-            if pd.notna(call_header_edited.loc["Width", c]) and pd.notna(call_header_edited.loc["Ratio (1:N)", c])
+            if pd.notna(call_header_edited.loc["Width", c]) and pd.notna(call_header_edited.loc["Ratio", c])
             and call_header_edited.loc["Width", c] > 0 and call_header_edited.loc["Ratio", c] > 0
         ]
 
