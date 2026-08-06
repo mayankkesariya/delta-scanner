@@ -346,7 +346,7 @@ try:
         opps = opps.sort_values(["net_credit", "width"], ascending=[False, False]).reset_index(drop=True)
 
     st.subheader("Live Opportunities Available")
-    st.caption(f"Scanning ratios from 1:{start_ratio} to 1:{end_ratio}")
+    
     if opps.empty:
         st.warning("No opportunities found for the current filters.")
     else:
