@@ -466,9 +466,9 @@ try:
     # ==========================================================================
     # NEW SECTION (added below everything above, does not modify anything above)
     # Strike x Width x Ratio matrix, Call side — replica of the NIFTY Put/Call
-    # sheet grid: rows = every call strike from ATM to the last available
-    # strike, columns = editable width/difference values with an editable
-    # ratio (default 1:10) shown directly below each width.
+    # sheet grid: an editable Width row and Ratio row sit directly on top of
+    # the strike grid (same table, no separate settings panel). Edit Width /
+    # Ratio (1:N) in place; the strike rows below recompute live.
     # ==========================================================================
     st.markdown("---")
     st.subheader("Strike × Width × Ratio Matrix — Call Side")
@@ -486,42 +486,105 @@ try:
 
         st.caption(
             f"ATM Call strike: **{atm_strike_matrix:,.0f}**  |  "
-            f"Rows run from ATM up to the last available call strike (**{strikes_from_atm[-1]:,.0f}**)."
+            f"Rows run from ATM up to the last available call strike (**{strikes_from_atm[-1]:,.0f}**). "
+            f"Edit Width / Ratio directly in the top two rows below."
         )
 
-        default_width_ratio = pd.DataFrame({
-            "Width": [300, 450, 500, 600, 650],
-            "Ratio (1:N)": [10, 10, 10, 10, 10],
-        })
-        col_defs_editor = st.data_editor(
-            default_width_ratio,
-            num_rows="dynamic",
+        call_slot_labels = [str(i + 1) for i in range(6)]
+        default_call_header = pd.DataFrame(
+            [[300, 450, 500, 600, 650, 700], [10, 10, 10, 10, 10, 10]],
+            index=["Width", "Ratio (1:N)"],
+            columns=call_slot_labels
+        )
+        call_header_edited = st.data_editor(
+            default_call_header,
             use_container_width=True,
-            key="call_ratio_matrix_config",
-            column_config={
-                "Width": st.column_config.NumberColumn("Width", min_value=0, step=50),
-                "Ratio (1:N)": st.column_config.NumberColumn("Ratio (1:N)", min_value=1, step=1),
-            }
+            key="call_ratio_matrix_header",
+            column_config={c: st.column_config.NumberColumn(c, min_value=0, step=10) for c in call_slot_labels}
         )
 
-        column_defs = [
-            (float(row["Width"]), int(row["Ratio (1:N)"]))
-            for _, row in col_defs_editor.dropna().iterrows()
+        call_column_defs = [
+            (float(call_header_edited.loc["Width", c]), int(call_header_edited.loc["Ratio (1:N)", c]))
+            for c in call_slot_labels
+            if pd.notna(call_header_edited.loc["Width", c]) and pd.notna(call_header_edited.loc["Ratio (1:N)", c])
+            and call_header_edited.loc["Width", c] > 0 and call_header_edited.loc["Ratio (1:N)", c] > 0
         ]
 
-        if not column_defs:
-            st.info("Add at least one Width / Ratio row above to build the matrix.")
+        if not call_column_defs:
+            st.info("Set at least one Width / Ratio pair above (both > 0) to build the matrix.")
         else:
-            call_matrix = build_ratio_matrix(option_df, "call_options", strikes_from_atm, column_defs, price_mode)
+            call_matrix = build_ratio_matrix(option_df, "call_options", strikes_from_atm, call_column_defs, price_mode)
             if call_matrix.empty:
                 st.warning("No data available to build the matrix.")
             else:
-                st.dataframe(call_matrix, use_container_width=True, height=600)
+                st.dataframe(call_matrix, use_container_width=True, height=560)
                 st.caption("Each cell = Net Credit for Buy 1 lot @ row strike, Sell (ratio) lots @ nearest strike (row strike + width).")
                 st.download_button(
                     "Download call ratio matrix CSV",
                     call_matrix.to_csv().encode("utf-8"),
                     f"btc_call_ratio_matrix_{selected_expiry}.csv",
+                    "text/csv"
+                )
+
+    # ==========================================================================
+    # NEW SECTION (added below the Call matrix, does not modify anything above)
+    # Strike x Width x Ratio matrix, Put side — mirrors the Call matrix above:
+    # editable Width / Ratio rows sit on top of the strike grid, which runs
+    # from ATM down to the last available put strike.
+    # ==========================================================================
+    st.markdown("---")
+    st.subheader("Strike × Width × Ratio Matrix — Put Side")
+
+    matrix_put_sub = option_df[option_df["contract_type"] == "put_options"].copy()
+    matrix_put_sub["strike_price"] = pd.to_numeric(matrix_put_sub["strike_price"], errors="coerce")
+    matrix_put_sub = matrix_put_sub.dropna(subset=["strike_price"])
+
+    if matrix_put_sub.empty or spot_value is None:
+        st.warning("No put strikes available to build the matrix.")
+    else:
+        atm_strike_matrix_put = float(matrix_put_sub.loc[(matrix_put_sub["strike_price"] - spot_value).abs().idxmin(), "strike_price"])
+        all_put_strikes = sorted(matrix_put_sub["strike_price"].unique())
+        strikes_from_atm_put = [s for s in reversed(all_put_strikes) if s <= atm_strike_matrix_put]
+
+        st.caption(
+            f"ATM Put strike: **{atm_strike_matrix_put:,.0f}**  |  "
+            f"Rows run from ATM down to the last available put strike (**{strikes_from_atm_put[-1] if strikes_from_atm_put else atm_strike_matrix_put:,.0f}**). "
+            f"Edit Width / Ratio directly in the top two rows below."
+        )
+
+        put_slot_labels = [str(i + 1) for i in range(6)]
+        default_put_header = pd.DataFrame(
+            [[300, 450, 500, 600, 650, 700], [10, 10, 10, 10, 10, 10]],
+            index=["Width", "Ratio (1:N)"],
+            columns=put_slot_labels
+        )
+        put_header_edited = st.data_editor(
+            default_put_header,
+            use_container_width=True,
+            key="put_ratio_matrix_header",
+            column_config={c: st.column_config.NumberColumn(c, min_value=0, step=10) for c in put_slot_labels}
+        )
+
+        put_column_defs = [
+            (float(put_header_edited.loc["Width", c]), int(put_header_edited.loc["Ratio (1:N)", c]))
+            for c in put_slot_labels
+            if pd.notna(put_header_edited.loc["Width", c]) and pd.notna(put_header_edited.loc["Ratio (1:N)", c])
+            and put_header_edited.loc["Width", c] > 0 and put_header_edited.loc["Ratio (1:N)", c] > 0
+        ]
+
+        if not put_column_defs:
+            st.info("Set at least one Width / Ratio pair above (both > 0) to build the matrix.")
+        else:
+            put_matrix = build_ratio_matrix(option_df, "put_options", strikes_from_atm_put, put_column_defs, price_mode)
+            if put_matrix.empty:
+                st.warning("No data available to build the matrix.")
+            else:
+                st.dataframe(put_matrix, use_container_width=True, height=560)
+                st.caption("Each cell = Net Credit for Buy 1 lot @ row strike, Sell (ratio) lots @ nearest strike (row strike − width).")
+                st.download_button(
+                    "Download put ratio matrix CSV",
+                    put_matrix.to_csv().encode("utf-8"),
+                    f"btc_put_ratio_matrix_{selected_expiry}.csv",
                     "text/csv"
                 )
 
