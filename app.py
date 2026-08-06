@@ -326,11 +326,11 @@ try:
     chain = build_chain_table(option_rows)
     option_df = enrich_option_rows(option_rows)
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2 = st.columns(3)
     spot_candidates = pd.to_numeric(pd.DataFrame(option_rows).get("spot_price"), errors="coerce").dropna()
     spot_value = float(spot_candidates.iloc[0]) if not spot_candidates.empty else None
-    c2.metric("Spot Price", f"{spot_value:,.2f}" if spot_value is not None else "NA")
-    c3.metric("Selected Expiry", selected_expiry)
+    c1.metric("Spot Price", f"{spot_value:,.2f}" if spot_value is not None else "NA")
+    c2.metric("Selected Expiry", selected_expiry)
 
     option_type = "call_options" if strategy_side == "Call Ratio Spread" else "put_options"
     start_ratio = min(ratio_start, ratio_end)
