@@ -462,6 +462,7 @@ try:
     # Ratio (1:N) in place; the strike rows below recompute live.
     # ==========================================================================
     st.markdown("---")
+    st.title("BTCUSD Skew")
     st.subheader("Strike × Width × Ratio Matrix — Call Side")
 
     matrix_call_sub = option_df[option_df["contract_type"] == "call_options"].copy()
