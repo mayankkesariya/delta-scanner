@@ -405,7 +405,7 @@ try:
                     
                    
                   
-                )
+                
         else:
             st.info("No call strikes fall inside the start/end difference range — try widening it.")
 
