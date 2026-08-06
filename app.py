@@ -462,8 +462,8 @@ try:
     # Ratio (1:N) in place; the strike rows below recompute live.
     # ==========================================================================
     st.markdown("---")
-    st.title("BTCUSD Skew")
-    st.subheader("Strike × Width × Ratio Matrix — Call Side")
+    st.title("BTCUSD Skew Curve")
+    st.subheader("")
 
     matrix_call_sub = option_df[option_df["contract_type"] == "call_options"].copy()
     matrix_call_sub["strike_price"] = pd.to_numeric(matrix_call_sub["strike_price"], errors="coerce")
@@ -476,16 +476,12 @@ try:
         all_call_strikes = sorted(matrix_call_sub["strike_price"].unique())
         strikes_from_atm = [s for s in all_call_strikes if s >= atm_strike_matrix]
 
-        st.caption(
-            f"ATM Call strike: **{atm_strike_matrix:,.0f}**  |  "
-            f"Rows run from ATM up to the last available call strike (**{strikes_from_atm[-1]:,.0f}**). "
-            f"Edit Width / Ratio directly in the top two rows below."
-        )
+        
 
         call_slot_labels = [str(i + 1) for i in range(6)]
         default_call_header = pd.DataFrame(
-            [[300, 450, 500, 600, 650, 700], [10, 10, 10, 10, 10, 10]],
-            index=["Width", "Ratio (1:N)"],
+            [[800, 1000, 1200, 1400, 1600, 1800], [10, 10, 10, 10, 10, 10]],
+            index=["Width", "Ratio"],
             columns=call_slot_labels
         )
         call_header_edited = st.data_editor(
