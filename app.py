@@ -309,7 +309,10 @@ with st.sidebar:
     width_max = st.number_input("Maximum Farak", min_value=0, value=2400, step=200)
     max_rows = st.slider("Top opportunities", 5, 50, 50, 5)
 
-st.markdown(f"<script>setTimeout(function(){{window.location.reload();}}, {refresh_seconds * 1000});</script>", unsafe_allow_html=True)
+st.components.v1.html(
+    f"<script>setTimeout(function(){{ window.parent.location.reload(); }}, {refresh_seconds * 1000});</script>",
+    height=0
+)
 
 if st.button("Refresh now"):
     st.cache_data.clear()
@@ -402,10 +405,13 @@ try:
             if atm_table.empty:
                 st.warning("No valid strikes found in that difference range.")
             else:
-                st.dataframe(format_numeric_columns(atm_table), use_container_width=True, height=380)
+                atm_table_view = atm_table[["Actual Width", "Long Strike", "Short Strike", "Buy Price", "Sell Price", "Net Credit"]].rename(
+                    columns={"Actual Width": "Width"}
+                )
+                st.dataframe(format_numeric_columns(atm_table_view), use_container_width=True, height=380)
                 st.download_button(
                     "Download ATM ratio table CSV",
-                    atm_table.to_csv(index=False).encode("utf-8"),
+                    atm_table_view.to_csv(index=False).encode("utf-8"),
                     f"btc_atm_ratio_{int(atm_long_qty)}_{int(atm_short_qty)}_{selected_expiry}.csv",
                     "text/csv"
                 )
@@ -453,10 +459,13 @@ try:
             if atm_table_put.empty:
                 st.warning("No valid strikes found in that difference range.")
             else:
-                st.dataframe(format_numeric_columns(atm_table_put), use_container_width=True, height=380)
+                atm_table_put_view = atm_table_put[["Actual Width", "Long Strike", "Short Strike", "Buy Price", "Sell Price", "Net Credit"]].rename(
+                    columns={"Actual Width": "Width"}
+                )
+                st.dataframe(format_numeric_columns(atm_table_put_view), use_container_width=True, height=380)
                 st.download_button(
                     "Download ATM ratio table CSV (Put)",
-                    atm_table_put.to_csv(index=False).encode("utf-8"),
+                    atm_table_put_view.to_csv(index=False).encode("utf-8"),
                     f"btc_atm_ratio_put_{int(atm_long_qty_put)}_{int(atm_short_qty_put)}_{selected_expiry}.csv",
                     "text/csv"
                 )
