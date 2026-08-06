@@ -481,7 +481,7 @@ try:
         call_slot_labels = [str(i + 1) for i in range(6)]
         default_call_header = pd.DataFrame(
             [[800, 1000, 1200, 1400, 1600, 1800], [10, 10, 10, 10, 10, 10]],
-            index=["Width", "Ratio (1:N)"],
+            index=["Width", "Ratio"],
             columns=call_slot_labels
         )
         call_header_edited = st.data_editor(
@@ -492,10 +492,10 @@ try:
         )
 
         call_column_defs = [
-            (float(call_header_edited.loc["Width", c]), int(call_header_edited.loc["Ratio (1:N)", c]))
+            (float(call_header_edited.loc["Width", c]), int(call_header_edited.loc["Ratio", c]))
             for c in call_slot_labels
             if pd.notna(call_header_edited.loc["Width", c]) and pd.notna(call_header_edited.loc["Ratio (1:N)", c])
-            and call_header_edited.loc["Width", c] > 0 and call_header_edited.loc["Ratio (1:N)", c] > 0
+            and call_header_edited.loc["Width", c] > 0 and call_header_edited.loc["Ratio", c] > 0
         ]
 
         if not call_column_defs:
