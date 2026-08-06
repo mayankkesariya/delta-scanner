@@ -481,7 +481,7 @@ try:
         call_slot_labels = [str(i + 1) for i in range(6)]
         default_call_header = pd.DataFrame(
             [[800, 1000, 1200, 1400, 1600, 1800], [10, 10, 10, 10, 10, 10]],
-            index=["Width", "Ratio"],
+            index=["Width", "Ratio (1:N)"],
             columns=call_slot_labels
         )
         call_header_edited = st.data_editor(
