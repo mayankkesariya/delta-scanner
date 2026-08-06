@@ -355,10 +355,10 @@ try:
             "ratio","long_strike","short_strike","width","buy_price","sell_price","net_credit","long_strike_iv","short_strike_iv","iv_difference"
         ]]
         show_df.columns = [
-            "Ratio","Long Strike","Short Strike","Farak","Buy Price","Sell Price","Net Credit","Long Strike IV","Short Strike IV","IV Difference"
+            "Ratio","Long Strike","Short Strike","Farak","Buy Price","Sell Price","Net Credit","Long IV","Short IV","IV Difference"
         ]
         st.dataframe(show_df, use_container_width=True, height=420)
-        st.download_button("Download opportunities CSV", opps.to_csv(index=False).encode("utf-8"), f"delta_ratio_spreads_{selected_expiry}.csv", "text/csv")
+        
 
     # ==========================================================================
     # NEW SECTION (added below scanner, does not modify anything above)
