@@ -377,7 +377,7 @@ try:
     else:
         atm_strike = float(call_sub.loc[(call_sub["strike_price"] - spot_value).abs().idxmin(), "strike_price"])
 
-        wc1, wc2, wc3 = st.columns([1, 1, 1, 1])
+        wc1, wc2, wc3 = st.columns([1, 1, 1])
         atm_short_qty = wc2.number_input("Short qty per leg", min_value=1, value=10, step=1, key="atm_short_qty")
         start_diff = wc3.number_input("Start difference", min_value=0, value=600, step=100, key="atm_start_diff")
         end_diff = wc4.number_input("End difference", min_value=0, value=1400, step=100, key="atm_end_diff")
