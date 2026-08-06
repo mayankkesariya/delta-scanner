@@ -326,7 +326,7 @@ try:
     chain = build_chain_table(option_rows)
     option_df = enrich_option_rows(option_rows)
 
-    c1, c2 = st.columns(3)
+    c1, c2 = st.columns(2)
     spot_candidates = pd.to_numeric(pd.DataFrame(option_rows).get("spot_price"), errors="coerce").dropna()
     spot_value = float(spot_candidates.iloc[0]) if not spot_candidates.empty else None
     c1.metric("Spot Price", f"{spot_value:,.2f}" if spot_value is not None else "NA")
