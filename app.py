@@ -463,7 +463,8 @@ try:
     # ==========================================================================
     st.markdown("---")
     st.title("BTCUSD Skew Curve")
-    st.subheader("")
+    
+    st.subheader("Call Side")
     st.caption("You can manually edit the input values for Farak & Ratio")
 
     matrix_call_sub = option_df[option_df["contract_type"] == "call_options"].copy()
@@ -507,13 +508,7 @@ try:
                 st.warning("No data available to build the matrix.")
             else:
                 st.dataframe(call_matrix, use_container_width=True, height=560)
-                st.caption("Each cell = Net Credit for Buy 1 lot @ row strike, Sell (ratio) lots @ nearest strike (row strike + width).")
-                st.download_button(
-                    "Download call ratio matrix CSV",
-                    call_matrix.to_csv().encode("utf-8"),
-                    f"btc_call_ratio_matrix_{selected_expiry}.csv",
-                    "text/csv"
-                )
+               
 
     # ==========================================================================
     # NEW SECTION (added below the Call matrix, does not modify anything above)
@@ -522,7 +517,8 @@ try:
     # from ATM down to the last available put strike.
     # ==========================================================================
     st.markdown("---")
-    st.subheader("Strike × Width × Ratio Matrix — Put Side")
+    st.subheader("Put Side")
+    st.caption("You can manually edit the input values for Farak & Ratio")
 
     matrix_put_sub = option_df[option_df["contract_type"] == "put_options"].copy()
     matrix_put_sub["strike_price"] = pd.to_numeric(matrix_put_sub["strike_price"], errors="coerce")
@@ -543,8 +539,8 @@ try:
 
         put_slot_labels = [str(i + 1) for i in range(6)]
         default_put_header = pd.DataFrame(
-            [[300, 450, 500, 600, 650, 700], [10, 10, 10, 10, 10, 10]],
-            index=["Width", "Ratio (1:N)"],
+            [[800, 1000, 1200, 1400, 1600, 1800], [10, 10, 10, 10, 10, 10]],
+            index=["Farak", "Ratio"],
             columns=put_slot_labels
         )
         put_header_edited = st.data_editor(
@@ -555,10 +551,10 @@ try:
         )
 
         put_column_defs = [
-            (float(put_header_edited.loc["Width", c]), int(put_header_edited.loc["Ratio (1:N)", c]))
+            (float(put_header_edited.loc["Farak", c]), int(put_header_edited.loc["Ratio", c]))
             for c in put_slot_labels
-            if pd.notna(put_header_edited.loc["Width", c]) and pd.notna(put_header_edited.loc["Ratio (1:N)", c])
-            and put_header_edited.loc["Width", c] > 0 and put_header_edited.loc["Ratio (1:N)", c] > 0
+            if pd.notna(put_header_edited.loc["Farak", c]) and pd.notna(put_header_edited.loc["Ratio", c])
+            and put_header_edited.loc["Farak", c] > 0 and put_header_edited.loc["Ratio", c] > 0
         ]
 
         if not put_column_defs:
@@ -569,13 +565,7 @@ try:
                 st.warning("No data available to build the matrix.")
             else:
                 st.dataframe(put_matrix, use_container_width=True, height=560)
-                st.caption("Each cell = Net Credit for Buy 1 lot @ row strike, Sell (ratio) lots @ nearest strike (row strike − width).")
-                st.download_button(
-                    "Download put ratio matrix CSV",
-                    put_matrix.to_csv().encode("utf-8"),
-                    f"btc_put_ratio_matrix_{selected_expiry}.csv",
-                    "text/csv"
-                )
+                
 
 except requests.HTTPError as e:
     st.error(f"HTTP error: {e}")
