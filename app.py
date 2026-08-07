@@ -358,7 +358,7 @@ try:
         show_df.columns = [
             "Ratio","Long Strike","Short Strike","Farak","Buy Price","Sell Price","Net Credit","Long IV","Short IV","IV Difference"
         ]
-        st.dataframe(show_df, use_container_width=True, height=420)
+        st.dataframe(show_df, use_container_width=True, height=420, hide_index=True)
         
 
     # ==========================================================================
@@ -400,7 +400,7 @@ try:
                 atm_table_view = atm_table[["Actual Width", "Long Strike", "Short Strike", "Buy Price", "Sell Price", "Net Credit"]].rename(
                     columns={"Actual Width": "Width"}
                 )
-                st.dataframe(format_numeric_columns(atm_table_view), use_container_width=True, height=380)
+                st.dataframe(format_numeric_columns(atm_table_view), use_container_width=True, height=380, hide_index=True)
                 
                     
                     
@@ -450,7 +450,7 @@ try:
                 atm_table_put_view = atm_table_put[["Actual Width", "Long Strike", "Short Strike", "Buy Price", "Sell Price", "Net Credit"]].rename(
                     columns={"Actual Width": "Width"}
                 )
-                st.dataframe(format_numeric_columns(atm_table_put_view), use_container_width=True, height=380)
+                st.dataframe(format_numeric_columns(atm_table_put_view), use_container_width=True, height=380, hide_index=True)
                 
         else:
             st.info("No put strikes fall inside the start/end difference range — try widening it.")
