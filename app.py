@@ -272,12 +272,17 @@ def build_ratio_matrix(df, option_type, base_strikes, width_ratio_pairs, price_m
         buy_price = premium_buy(long_row, price_mode)
         mark_price = long_row.get("mark_price")
         candidates = sub[sub["strike_price"] > base] if option_type == "call_options" else sub[sub["strike_price"] < base]
+        boundary_strike = candidates["strike_price"].max() if option_type == "call_options" else candidates["strike_price"].min()
         row_vals = [round(float(mark_price), 2) if pd.notna(mark_price) else None]
         for w, r in width_ratio_pairs:
             if candidates.empty or pd.isna(buy_price):
                 row_vals.append(None)
                 continue
             target = base + w if option_type == "call_options" else base - w
+            out_of_range = (target > boundary_strike) if option_type == "call_options" else (target < boundary_strike)
+            if out_of_range:
+                row_vals.append(None)
+                continue
             nearest_idx = (candidates["strike_price"] - target).abs().idxmin()
             short_row = candidates.loc[nearest_idx]
             sell_price = premium_sell(short_row, price_mode)
