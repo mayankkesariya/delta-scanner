@@ -332,11 +332,29 @@ try:
     chain = build_chain_table(option_rows)
     option_df = enrich_option_rows(option_rows)
 
-    c1, c2 = st.columns(2)
     spot_candidates = pd.to_numeric(pd.DataFrame(option_rows).get("spot_price"), errors="coerce").dropna()
     spot_value = float(spot_candidates.iloc[0]) if not spot_candidates.empty else None
-    c1.metric("Spot Price", f"{spot_value:,.2f}" if spot_value is not None else "NA")
-    c2.metric("Selected Expiry", selected_expiry)
+
+    straddle_price = None
+    if spot_value is not None:
+        straddle_call_sub = option_df[option_df["contract_type"] == "call_options"].copy()
+        straddle_call_sub["strike_price"] = pd.to_numeric(straddle_call_sub["strike_price"], errors="coerce")
+        straddle_call_sub = straddle_call_sub.dropna(subset=["strike_price"])
+        straddle_put_sub = option_df[option_df["contract_type"] == "put_options"].copy()
+        straddle_put_sub["strike_price"] = pd.to_numeric(straddle_put_sub["strike_price"], errors="coerce")
+        straddle_put_sub = straddle_put_sub.dropna(subset=["strike_price"])
+        if not straddle_call_sub.empty and not straddle_put_sub.empty:
+            atm_call_row = straddle_call_sub.loc[(straddle_call_sub["strike_price"] - spot_value).abs().idxmin()]
+            atm_put_row = straddle_put_sub.loc[(straddle_put_sub["strike_price"] - spot_value).abs().idxmin()]
+            call_leg_price = premium_buy(atm_call_row, price_mode)
+            put_leg_price = premium_buy(atm_put_row, price_mode)
+            if pd.notna(call_leg_price) and pd.notna(put_leg_price):
+                straddle_price = call_leg_price + put_leg_price
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Straddle Price", f"{straddle_price:,.2f}" if straddle_price is not None else "NA")
+    c2.metric("Spot Price", f"{spot_value:,.2f}" if spot_value is not None else "NA")
+    c3.metric("Selected Expiry", selected_expiry)
 
     option_type = "call_options" if strategy_side == "Call Ratio Spread" else "put_options"
     start_ratio = min(ratio_start, ratio_end)
