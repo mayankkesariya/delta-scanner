@@ -500,9 +500,15 @@ try:
     else:
         atm_strike_matrix = float(matrix_call_sub.loc[(matrix_call_sub["strike_price"] - spot_value).abs().idxmin(), "strike_price"])
         all_call_strikes = sorted(matrix_call_sub["strike_price"].unique())
-        strikes_from_atm = [s for s in all_call_strikes if s >= atm_strike_matrix]
 
-        
+        call_start_strike_input = st.number_input(
+            "Start Strike (0 = ATM)", min_value=0, value=0, step=100, key="call_start_strike"
+        )
+        if call_start_strike_input > 0:
+            anchor_strike_call = float(matrix_call_sub.loc[(matrix_call_sub["strike_price"] - call_start_strike_input).abs().idxmin(), "strike_price"])
+        else:
+            anchor_strike_call = atm_strike_matrix
+        strikes_from_atm = [s for s in all_call_strikes if s >= anchor_strike_call]
 
         call_slot_labels = [str(i + 1) for i in range(6)]
         default_call_header = pd.DataFrame(
@@ -553,7 +559,15 @@ try:
     else:
         atm_strike_matrix_put = float(matrix_put_sub.loc[(matrix_put_sub["strike_price"] - spot_value).abs().idxmin(), "strike_price"])
         all_put_strikes = sorted(matrix_put_sub["strike_price"].unique())
-        strikes_from_atm_put = [s for s in reversed(all_put_strikes) if s <= atm_strike_matrix_put]
+
+        put_start_strike_input = st.number_input(
+            "Start Strike (0 = ATM)", min_value=0, value=0, step=100, key="put_start_strike"
+        )
+        if put_start_strike_input > 0:
+            anchor_strike_put = float(matrix_put_sub.loc[(matrix_put_sub["strike_price"] - put_start_strike_input).abs().idxmin(), "strike_price"])
+        else:
+            anchor_strike_put = atm_strike_matrix_put
+        strikes_from_atm_put = [s for s in reversed(all_put_strikes) if s <= anchor_strike_put]
 
         
 
