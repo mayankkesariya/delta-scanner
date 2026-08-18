@@ -2,6 +2,7 @@ import math
 import requests
 import pandas as pd
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 
 BASE_URL = "https://api.india.delta.exchange/v2"
 HEADERS = {
@@ -315,7 +316,10 @@ with st.sidebar:
     width_max = st.number_input("Maximum Farak", min_value=0, value=2400, step=200)
     max_rows = st.slider("Top opportunities", 5, 50, 50, 5)
 
-st.markdown(f"<script>setTimeout(function(){{window.location.reload();}}, {refresh_seconds * 1000});</script>", unsafe_allow_html=True)
+refresh_count = st_autorefresh(interval=refresh_seconds * 1000, key="autorefresh")
+if st.session_state.get("_last_refresh_count") != refresh_count:
+    st.session_state["_last_refresh_count"] = refresh_count
+    st.cache_data.clear()
 
 if st.button("Refresh Now"):
     st.cache_data.clear()
