@@ -306,7 +306,7 @@ def format_numeric_columns(df):
     return out
 
 with st.sidebar:
-    refresh_seconds = st.slider("Auto Refresh", 5, 10, 5, 1)
+    refresh_seconds = st.slider("Auto Refresh", 10, 30, 10, 5)
     strategy_side = st.selectbox("CE/PE", ["Call Ratios", "Put Ratios"])
     ratio_start = st.number_input("Show Ratios from", min_value=2, max_value=20, value=10, step=1)
     ratio_end = st.number_input("Show Ratios till", min_value=2, max_value=20, value=10, step=1)
