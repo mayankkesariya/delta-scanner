@@ -10,7 +10,7 @@ HEADERS = {
     "User-Agent": "streamlit-option-chain-app"
 }
 
-st.set_page_config(page_title="Delta BTC Ratio Spread Scanner", layout="wide")
+st.set_page_config(page_title="Bitcoin Parity", layout="wide")
 st.title("BTCUSD Parity")
 
 @st.cache_data(ttl=30)
