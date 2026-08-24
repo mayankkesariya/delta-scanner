@@ -306,13 +306,13 @@ def format_numeric_columns(df):
     return out
 
 with st.sidebar:
-    refresh_seconds = st.slider("Auto Refresh", 10, 30, 10, 5)
+    refresh_seconds = st.slider("Auto Refresh", 10, 30, 20, 5)
     strategy_side = st.selectbox("CE/PE", ["Call Ratios", "Put Ratios"])
     ratio_start = st.number_input("Show Ratios from", min_value=2, max_value=20, value=10, step=1)
     ratio_end = st.number_input("Show Ratios till", min_value=2, max_value=20, value=10, step=1)
-    price_mode = st.selectbox("Premium", ["Default", "Mark Price (Inaccurate)"], index=0)
+    price_mode = st.selectbox("Premium", ["Live Bid/Ask", "Mark Price (Inaccurate)"], index=0)
     min_credit = st.number_input("Minimum Net Credit", min_value=0.0, value=20.0, step=1.0)
-    width_min = st.number_input("Minimum Farak", min_value=0, value=800, step=200)
+    width_min = st.number_input("Minimum Farak", min_value=200, value=1000, step=200)
     width_max = st.number_input("Maximum Farak", min_value=0, value=2400, step=200)
     max_rows = st.slider("Top opportunities", 5, 50, 50, 5)
 
@@ -409,7 +409,7 @@ try:
         atm_long_qty = wc1.number_input("ATM Long", min_value=1, max_value=1, value=1, step=1, key="atm_long_qty")
         atm_short_qty = wc2.number_input("Ratio", min_value=1, value=10, step=1, key="atm_short_qty")
         start_diff = wc3.number_input("Start Farak", min_value=0, value=600, step=100, key="atm_start_diff")
-        end_diff = wc4.number_input("End Farak", min_value=0, value=2400, step=100, key="atm_end_diff")
+        end_diff = wc4.number_input("End Farak", min_value=0, value=3200, step=100, key="atm_end_diff")
 
         lo_diff, hi_diff = (start_diff, end_diff) if start_diff <= end_diff else (end_diff, start_diff)
         strikes_in_band = call_sub.loc[
@@ -458,7 +458,7 @@ try:
         atm_long_qty_put = wp1.number_input("ATM Long", min_value=1, max_value=1, value=1, step=1, key="atm_long_qty_put")
         atm_short_qty_put = wp2.number_input("Ratio", min_value=1, value=10, step=1, key="atm_short_qty_put")
         start_diff_put = wp3.number_input("Start Farak", min_value=0, value=600, step=100, key="atm_start_diff_put")
-        end_diff_put = wp4.number_input("End Farak", min_value=0, value=2400, step=100, key="atm_end_diff_put")
+        end_diff_put = wp4.number_input("End Farak", min_value=0, value=3200, step=100, key="atm_end_diff_put")
 
         lo_diff_put, hi_diff_put = (start_diff_put, end_diff_put) if start_diff_put <= end_diff_put else (end_diff_put, start_diff_put)
         strikes_in_band_put = put_sub.loc[
