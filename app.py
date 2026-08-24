@@ -425,7 +425,7 @@ try:
                 st.warning("No valid strikes found in that difference range.")
             else:
                 atm_table_view = atm_table[["Actual Width", "Long Strike", "Short Strike", "Buy Price", "Sell Price", "Net Credit"]].rename(
-                    columns={"Actual Width": "Width"}
+                    columns={"Actual Width": "Farak"}
                 )
                 st.dataframe(format_numeric_columns(atm_table_view), use_container_width=True, height=380, hide_index=True)
                 
@@ -475,7 +475,7 @@ try:
                 st.warning("No valid strikes found in that difference range.")
             else:
                 atm_table_put_view = atm_table_put[["Actual Width", "Long Strike", "Short Strike", "Buy Price", "Sell Price", "Net Credit"]].rename(
-                    columns={"Actual Width": "Width"}
+                    columns={"Actual Width": "Farak"}
                 )
                 st.dataframe(format_numeric_columns(atm_table_put_view), use_container_width=True, height=380, hide_index=True)
                 
