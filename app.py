@@ -510,7 +510,7 @@ try:
 
         call_slot_labels = [str(i + 1) for i in range(6)]
         default_call_header = pd.DataFrame(
-            [[1600, 1800, 2000, 2200, 24000, 2600], [10, 10, 10, 10, 10, 10]],
+            [[1600, 1800, 2000, 2200, 2400, 2600], [10, 10, 10, 10, 10, 10]],
             index=["Farak", "Ratio"],
             columns=call_slot_labels
         )
